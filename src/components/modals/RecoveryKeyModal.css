@@ -1,0 +1,50 @@
+.recovery-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+
+.recovery-modal__warn {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--warning-soft);
+  border: 1px solid rgba(255, 202, 98, 0.35);
+  color: var(--warning);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recovery-modal__warn p {
+  margin: 0;
+  color: var(--text);
+}
+
+.recovery-modal__warn strong {
+  color: var(--text-hi);
+}
+
+.recovery-modal__key {
+  display: block;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--accent-line);
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  user-select: all;
+}
+
+.recovery-modal__hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}

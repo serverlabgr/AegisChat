@@ -1,0 +1,5 @@
+# Production deploy assets must keep Unix line endings on Windows checkouts
+deploy/**/*.sh text eol=lf
+scripts/**/*.sh text eol=lf
+server/docker-entrypoint.sh text eol=lf
+deploy/Caddyfile text eol=lf

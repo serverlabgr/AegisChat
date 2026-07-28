@@ -1,0 +1,96 @@
+:root {
+  /* Base backdrop (gradient applied in .app) */
+  --bg-void: #060814;
+  --bg-deep: #04050d;
+
+  /* Glass surfaces — translucent, blurred */
+  --bg-panel: rgba(22, 28, 48, 0.55);
+  --bg-panel-2: rgba(30, 38, 62, 0.5);
+  --bg-inset: rgba(9, 12, 24, 0.55);
+  --bg-hover: rgba(255, 255, 255, 0.055);
+  --bg-active: rgba(255, 255, 255, 0.1);
+
+  /* Glass edges */
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+  --blur: 24px;
+  --blur-sm: 14px;
+
+  /* Lines */
+  --line: rgba(255, 255, 255, 0.06);
+  --line-2: rgba(255, 255, 255, 0.09);
+  --line-3: rgba(255, 255, 255, 0.15);
+
+  /* Text */
+  --text-hi: #eef1fb;
+  --text: #a8b1cb;
+  --text-dim: #6c7591;
+  --text-faint: #464f6a;
+  --text-inverse: #05122b;
+
+  /* Accent — neon azure */
+  --accent: #5cc8ff;
+  --accent-hover: #7fd6ff;
+  --accent-text: #93d8ff;
+  --accent-dim: #2b6d9e;
+  --accent-soft: rgba(92, 200, 255, 0.14);
+  --accent-line: rgba(92, 200, 255, 0.4);
+  --accent-glow: rgba(92, 200, 255, 0.55);
+
+  /* Aurora blobs */
+  --aurora-1: rgba(92, 200, 255, 0.22);
+  --aurora-2: rgba(150, 110, 255, 0.2);
+  --aurora-3: rgba(80, 230, 200, 0.14);
+
+  /* Status */
+  --status-online: #4be0a8;
+  --status-away: #ffca62;
+  --status-busy: #ff6b81;
+  --status-offline: #4a526a;
+
+  /* Semantic */
+  --danger: #ff6b81;
+  --danger-soft: rgba(255, 107, 129, 0.14);
+  --danger-line: rgba(255, 107, 129, 0.35);
+  --warning: #ffca62;
+  --warning-soft: rgba(255, 202, 98, 0.14);
+
+  /* Layout */
+  --cmdbar-height: 52px;
+  --nav-width: 312px;
+  --intel-width: 274px;
+  --statusbar-height: 28px;
+  --header-height: 54px;
+
+  /* Typography */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", monospace;
+
+  /* Radius — soft, glassy */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+
+  /* Elevation / glow */
+  --shadow-panel: 0 8px 40px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 12px 48px rgba(0, 0, 0, 0.55);
+  --glow-accent: 0 0 20px var(--accent-glow);
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Back-compat aliases */
+  --bg-base: var(--bg-void);
+  --bg-surface: var(--bg-panel);
+  --bg-elevated: var(--bg-panel-2);
+  --bg-input: var(--bg-inset);
+  --border-subtle: var(--line);
+  --border-default: var(--line-2);
+  --border-strong: var(--line-3);
+  --accent-border: var(--accent-line);
+  --text-primary: var(--text-hi);
+  --text-secondary: var(--text);
+  --text-muted: var(--text-dim);
+}

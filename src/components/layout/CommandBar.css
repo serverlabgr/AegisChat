@@ -1,0 +1,156 @@
+.cmdbar {
+  display: flex;
+  align-items: center;
+  height: var(--cmdbar-height);
+  background: rgba(12, 16, 30, 0.45);
+  backdrop-filter: blur(var(--blur-sm)) saturate(130%);
+  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(130%);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  user-select: none;
+  padding-right: 8px;
+  z-index: 20;
+}
+
+.cmdbar__identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: calc(72px + var(--nav-width));
+  padding: 0 14px 0 18px;
+  flex-shrink: 0;
+}
+
+.cmdbar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(140deg, var(--accent-soft), rgba(150, 110, 255, 0.14));
+  border: 1px solid var(--accent-line);
+  color: var(--accent-text);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+.cmdbar__node {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.cmdbar__node-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-hi);
+}
+
+.cmdbar__node-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.cmdbar__switch {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.cmdbar__switch:hover {
+  background: var(--bg-hover);
+  color: var(--text-hi);
+}
+
+.cmdbar__command {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 18px;
+  width: min(380px, 40vw);
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-full);
+  color: var(--text-dim);
+  cursor: text;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.cmdbar__command:hover {
+  border-color: var(--accent-line);
+  background: rgba(9, 12, 24, 0.7);
+}
+
+.cmdbar__command-text {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmdbar__kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+
+.cmdbar__hud {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 10px;
+}
+
+.cmdbar__controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+  margin-left: 6px;
+  border-left: 1px solid var(--line);
+}
+
+.cmdbar__win {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.cmdbar__win:hover {
+  background: var(--bg-hover);
+  color: var(--text-hi);
+}
+
+.cmdbar__win--close:hover {
+  background: var(--danger);
+  color: white;
+}

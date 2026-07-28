@@ -1,0 +1,93 @@
+# Production stack for a single VM: Postgres + API + Caddy (HTTPS + WSS)
+#
+# Usage (on the VM, from this folder):
+#   cp .env.example .env   # edit DOMAIN, secrets
+#   docker compose up -d --build
+#   docker compose exec api npx tsx src/seed.ts   # first time only
+#
+# Then point Windows clients to: https://YOUR_DOMAIN
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aegis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-aegis}
+    volumes:
+      - aegis_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegis} -d ${POSTGRES_DB:-aegis}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # Not published to the internet — only reachable by other compose services
+    networks:
+      - aegis_net
+
+  api:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://${POSTGRES_USER:-aegis}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aegis}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://tauri.localhost,https://tauri.localhost,tauri://localhost}
+      ACCESS_TTL_SEC: ${ACCESS_TTL_SEC:-900}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
+      UPLOAD_DIR: /data/uploads
+      # 0 = unlimited (disk is the real limit)
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-0}
+      RUN_SEED: ${RUN_SEED:-0}
+    volumes:
+      - aegis_uploads:/data/uploads
+    networks:
+      - aegis_net
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:3001/health",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - aegis_net
+
+networks:
+  aegis_net:
+
+volumes:
+  aegis_pg:
+  aegis_uploads:
+  caddy_data:
+  caddy_config:

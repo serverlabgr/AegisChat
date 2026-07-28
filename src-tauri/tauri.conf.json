@@ -1,0 +1,83 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Aegis",
+  "version": "0.2.0",
+  "identifier": "com.aegis.chat",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:8765",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Aegis",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "Aegis",
+    "shortDescription": "Private chat for your friend group",
+    "longDescription": "Aegis is an invite-only desktop chat for your friend group — channels, voice, games and more.",
+    "copyright": "Copyright © Aegis",
+    "category": "SocialNetworking",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "both",
+        "displayLanguageSelector": true,
+        "languages": [
+          "Greek",
+          "English"
+        ],
+        "installerIcon": "icons/icon.ico",
+        "startMenuFolder": "Aegis"
+      },
+      "wix": {
+        "language": [
+          "el-GR",
+          "en-US"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzRjM5NENCQzQ4NEREMjQKUldRazNZVEV5NVR6Z3hMNjVLK2tzYkljNjlmNFVFT2MwMkIybzhvUWxyVHVQOE1hbTh4MmF1M08K",
+      "endpoints": [
+        "https://github.com/mpoukas/aegis-chat/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

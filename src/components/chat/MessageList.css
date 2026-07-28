@@ -1,0 +1,54 @@
+.message-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.message-list__welcome {
+  margin: 28px 22px 8px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.message-list__welcome h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-hi);
+  margin: 0 0 4px;
+}
+
+.message-list__welcome p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0;
+  max-width: 520px;
+}
+
+.message-list__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 16px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.message-list__divider::before,
+.message-list__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+
+.message-list__messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

@@ -1,0 +1,63 @@
+name: Release Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Optional: bake default API URL into the installer (https://chat.example.com)
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Aegis v__VERSION__"
+          releaseBody: |
+            ## Εγκατάσταση (Windows)
+            Κατέβασε το **`Aegis_*_x64-setup.exe`** (NSIS).
+
+            - Desktop shortcut / Start Menu / per-user ή all-users
+            - Μετά το άνοιγμα βάλε **Server URL** = `https://YOUR_DOMAIN` (Ρυθμίσεις → Desktop),
+              εκτός αν το build έχει ήδη `VITE_API_URL`.
+
+            ## Updates
+            Ρυθμίσεις → Updates, ή αποδέξου το prompt όταν ανοίγει η εφαρμογή.
+            Τα updates έρχονται από αυτό το GitHub Release (`latest.json`).
+
+            ## Server
+            Το API/DB τρέχει στο VM σου — δες `DEPLOY.md` στο repo.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true

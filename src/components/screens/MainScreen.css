@@ -1,0 +1,79 @@
+/* CSS Grid shell — one surface, full window, no nested height % tricks */
+
+.shell {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  overflow: hidden;
+  grid-template-rows: var(--cmdbar-height) minmax(0, 1fr);
+}
+
+.shell--intel {
+  grid-template-columns: 72px var(--nav-width) minmax(0, 1fr) var(--intel-width);
+}
+
+.shell--chat {
+  grid-template-columns: 72px var(--nav-width) minmax(0, 1fr);
+}
+
+.shell--module {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.shell > .cmdbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.shell > .rail {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell > .sysnav {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell > .chat-area {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell--intel > .chat-area {
+  grid-column: 3;
+}
+
+.shell--chat > .chat-area {
+  grid-column: 3;
+}
+
+.shell > .intel {
+  grid-column: 4;
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell__module {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
