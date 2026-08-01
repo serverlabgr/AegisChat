@@ -47,7 +47,7 @@ jobs:
             ## Εγκατάσταση (Windows)
             Κατέβασε το **`Aegis_*_x64-setup.exe`** (NSIS).
 
-            - Desktop shortcut / Start Menu / per-user ή all-users
+            - Desktop shortcut / Start Menu (per-user, χωρίς UAC)
             - Μετά το άνοιγμα βάλε **Server URL** = `https://YOUR_DOMAIN` (Ρυθμίσεις → Desktop),
               εκτός αν το build έχει ήδη `VITE_API_URL`.
 

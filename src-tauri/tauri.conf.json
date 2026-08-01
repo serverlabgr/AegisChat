@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Aegis",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "identifier": "com.aegis.chat",
   "build": {
     "frontendDist": "../dist",
@@ -30,8 +30,7 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",
-      "msi"
+      "nsis"
     ],
     "icon": [
       "icons/32x32.png",
@@ -48,11 +47,11 @@
     "category": "SocialNetworking",
     "windows": {
       "webviewInstallMode": {
-        "type": "downloadBootstrapper",
+        "type": "embedBootstrapper",
         "silent": true
       },
       "nsis": {
-        "installMode": "both",
+        "installMode": "currentUser",
         "displayLanguageSelector": true,
         "languages": [
           "Greek",
@@ -60,12 +59,6 @@
         ],
         "installerIcon": "icons/icon.ico",
         "startMenuFolder": "Aegis"
-      },
-      "wix": {
-        "language": [
-          "el-GR",
-          "en-US"
-        ]
       }
     }
   },
