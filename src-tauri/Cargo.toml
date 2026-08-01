@@ -1,6 +1,6 @@
 [package]
 name = "aegis"
-version = "0.2.0"
+version = "0.2.1"
 description = "Aegis — private chat for your friend group"
 authors = ["you"]
 edition = "2021"
