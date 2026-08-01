@@ -25,10 +25,6 @@ const statusText: Record<GameServer["status"], string> = {
 
 const NODES = ["xeon-2699v4", "xeon-2697v3", "xeon-2667v3", "epyc-7402p"];
 
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, Math.round(n)));
-}
-
 export function GameHostingScreen() {
   const { toast } = useStore();
   const [servers, setServers] = usePersisted<GameServer[]>("game-servers", gameServers);
