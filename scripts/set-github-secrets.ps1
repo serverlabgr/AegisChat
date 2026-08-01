@@ -9,7 +9,7 @@
 #   $env:VITE_API_URL = "http://192.168.1.235:3001"
 
 $ErrorActionPreference = "Stop"
-$Repo = "mpoukas/aegis-chat"
+$Repo = "serverlabgr/AegisChat"
 $KeyPath = Join-Path $env:USERPROFILE ".tauri\aegis.key"
 
 if (-not (Test-Path $KeyPath)) {

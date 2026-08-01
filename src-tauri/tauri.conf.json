@@ -73,7 +73,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzRjM5NENCQzQ4NEREMjQKUldRazNZVEV5NVR6Z3hMNjVLK2tzYkljNjlmNFVFT2MwMkIybzhvUWxyVHVQOE1hbTh4MmF1M08K",
       "endpoints": [
-        "https://github.com/mpoukas/aegis-chat/releases/latest/download/latest.json"
+        "https://github.com/serverlabgr/AegisChat/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
