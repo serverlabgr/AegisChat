@@ -27,23 +27,27 @@ channelRoutes.get("/", async (c) => {
 channelRoutes.get("/:id/messages", async (c) => {
   const channelId = c.req.param("id");
   const limit = Math.min(Number(c.req.query("limit") ?? 80), 200);
+  // Newest N messages, returned oldest→newest for the UI.
   const { rows } = await query(
-    `SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to_id, m.edited, m.created_at,
-            COALESCE(
-              json_agg(
-                json_build_object('emoji', r.emoji, 'userIds', (
-                  SELECT json_agg(r2.user_id) FROM message_reactions r2
-                  WHERE r2.message_id = m.id AND r2.emoji = r.emoji
-                ))
-              ) FILTER (WHERE r.emoji IS NOT NULL),
-              '[]'
-            ) AS reactions
-     FROM messages m
-     LEFT JOIN message_reactions r ON r.message_id = m.id
-     WHERE m.channel_id = $1
-     GROUP BY m.id
-     ORDER BY m.created_at ASC
-     LIMIT $2`,
+    `WITH recent AS (
+       SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to_id, m.edited, m.created_at,
+              COALESCE(
+                json_agg(
+                  json_build_object('emoji', r.emoji, 'userIds', (
+                    SELECT json_agg(r2.user_id) FROM message_reactions r2
+                    WHERE r2.message_id = m.id AND r2.emoji = r.emoji
+                  ))
+                ) FILTER (WHERE r.emoji IS NOT NULL),
+                '[]'
+              ) AS reactions
+       FROM messages m
+       LEFT JOIN message_reactions r ON r.message_id = m.id
+       WHERE m.channel_id = $1
+       GROUP BY m.id
+       ORDER BY m.created_at DESC
+       LIMIT $2
+     )
+     SELECT * FROM recent ORDER BY created_at ASC`,
     [channelId, limit],
   );
 

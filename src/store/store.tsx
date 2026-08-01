@@ -38,6 +38,10 @@ import {
 import { usePersisted } from "../lib/persist";
 import { api, logout as apiLogout } from "../lib/api";
 import type { BootstrapPayload } from "../lib/session";
+import {
+  fetchChannelMessages,
+  fetchDmMessages,
+} from "../lib/session";
 import { realtime } from "../lib/realtime";
 import {
   decryptText,
@@ -544,42 +548,95 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const editMessage = useCallback(
     (messageId: string, content: string) => {
-      if (onlineRef.current) {
-        void api(`/channels/messages/${messageId}`, {
-          method: "PATCH",
-          body: { content },
-        }).catch(() => undefined);
-      }
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      const prevSnapshot =
+        activeView.type === "channel"
+          ? messagesByChannel[activeView.id]
+          : dmMessages[activeView.id];
       mutateActiveMessages((list) =>
         list.map((m) =>
-          m.id === messageId ? { ...m, content, edited: true } : m,
+          m.id === messageId ? { ...m, content: trimmed, edited: true } : m,
         ),
       );
+      if (!onlineRef.current) return;
+      void (async () => {
+        try {
+          const payload = await encryptText(trimmed);
+          await api(`/channels/messages/${messageId}`, {
+            method: "PATCH",
+            body: { content: payload },
+          });
+        } catch (err) {
+          if (prevSnapshot && activeView.type === "channel") {
+            setMessagesByChannel((prev) => ({
+              ...prev,
+              [activeView.id]: prevSnapshot,
+            }));
+          } else if (prevSnapshot && activeView.type === "dm") {
+            setDmMessages((prev) => ({
+              ...prev,
+              [activeView.id]: prevSnapshot,
+            }));
+          }
+          toast(err instanceof Error ? err.message : "Αποτυχία επεξεργασίας");
+        }
+      })();
     },
-    [mutateActiveMessages],
+    [
+      mutateActiveMessages,
+      activeView,
+      messagesByChannel,
+      dmMessages,
+      setMessagesByChannel,
+      setDmMessages,
+      toast,
+    ],
   );
 
   const deleteMessage = useCallback(
     (messageId: string) => {
-      if (onlineRef.current) {
-        void api(`/channels/messages/${messageId}`, {
-          method: "DELETE",
-        }).catch(() => undefined);
-      }
+      const prevSnapshot =
+        activeView.type === "channel"
+          ? messagesByChannel[activeView.id]
+          : dmMessages[activeView.id];
       mutateActiveMessages((list) => list.filter((m) => m.id !== messageId));
+      if (!onlineRef.current) return;
+      void api(`/channels/messages/${messageId}`, { method: "DELETE" }).catch(
+        (err) => {
+          if (prevSnapshot && activeView.type === "channel") {
+            setMessagesByChannel((prev) => ({
+              ...prev,
+              [activeView.id]: prevSnapshot,
+            }));
+          } else if (prevSnapshot && activeView.type === "dm") {
+            setDmMessages((prev) => ({
+              ...prev,
+              [activeView.id]: prevSnapshot,
+            }));
+          }
+          toast(err instanceof Error ? err.message : "Αποτυχία διαγραφής");
+        },
+      );
     },
-    [mutateActiveMessages],
+    [
+      mutateActiveMessages,
+      activeView,
+      messagesByChannel,
+      dmMessages,
+      setMessagesByChannel,
+      setDmMessages,
+      toast,
+    ],
   );
 
   const toggleReaction = useCallback(
     (messageId: string, emoji: string) => {
       const me = currentUserRef.current;
-      if (onlineRef.current) {
-        void api(`/channels/messages/${messageId}/reactions`, {
-          method: "POST",
-          body: { emoji },
-        }).catch(() => undefined);
-      }
+      const prevSnapshot =
+        activeView.type === "channel"
+          ? messagesByChannel[activeView.id]
+          : dmMessages[activeView.id];
       mutateActiveMessages((list) =>
         list.map((m) => {
           if (m.id !== messageId) return m;
@@ -602,8 +659,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return { ...m, reactions };
         }),
       );
+      if (!onlineRef.current) return;
+      void api(`/channels/messages/${messageId}/reactions`, {
+        method: "POST",
+        body: { emoji },
+      }).catch((err) => {
+        if (prevSnapshot && activeView.type === "channel") {
+          setMessagesByChannel((prev) => ({
+            ...prev,
+            [activeView.id]: prevSnapshot,
+          }));
+        } else if (prevSnapshot && activeView.type === "dm") {
+          setDmMessages((prev) => ({
+            ...prev,
+            [activeView.id]: prevSnapshot,
+          }));
+        }
+        toast(err instanceof Error ? err.message : "Αποτυχία reaction");
+      });
     },
-    [mutateActiveMessages],
+    [
+      mutateActiveMessages,
+      activeView,
+      messagesByChannel,
+      dmMessages,
+      setMessagesByChannel,
+      setDmMessages,
+      toast,
+    ],
   );
 
   const setPresence = useCallback(
@@ -905,7 +988,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const inviteToGame = useCallback(
     (userId: string) => {
-      const content = "🎮 Πρόσκληση σε παιχνίδι — μπες όποτε είσαι έτοιμος!";
+      const plain =
+        "🎮 Πρόσκληση σε παιχνίδι — μπες όποτε είσαι έτοιμος!";
       if (onlineRef.current) {
         void (async () => {
           try {
@@ -913,12 +997,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               `/dms/with/${userId}`,
               { method: "POST", body: {} },
             );
+            const payload = await encryptText(plain);
             const { message } = await api<{ message: Message }>(
               `/dms/${encodeURIComponent(threadId)}/messages`,
-              { method: "POST", body: { content } },
+              { method: "POST", body: { content: payload } },
             );
-            ingestDmMessage(threadId, message);
-            toast(`Η πρόσκληση στάλθηκε στον/στην ${users[userId]?.name ?? "φίλο"}`);
+            ingestDmMessage(threadId, {
+              ...message,
+              content: plain,
+              encrypted: true,
+            });
+            toast(
+              `Η πρόσκληση στάλθηκε στον/στην ${users[userId]?.name ?? "φίλο"}`,
+            );
           } catch (err) {
             toast(err instanceof Error ? err.message : "Αποτυχία");
           }
@@ -929,7 +1020,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const message: Message = {
         id: uid("m"),
         authorId: currentUserRef.current,
-        content,
+        content: plain,
         timestamp: Date.now(),
         encrypted: true,
         reactions: [],
@@ -1007,6 +1098,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [disconnectRealtime]);
 
   const connectRealtime = useCallback(() => {
+    const catchUp = () => {
+      void (async () => {
+        try {
+          const view = activeViewRef.current;
+          if (view.type === "channel") {
+            const msgs = await fetchChannelMessages(view.id);
+            setMessagesByChannel((prev) => ({ ...prev, [view.id]: msgs }));
+          } else if (view.id !== "__personal_home__") {
+            const msgs = await fetchDmMessages(view.id);
+            setDmMessages((prev) => ({ ...prev, [view.id]: msgs }));
+          }
+        } catch {
+          /* ignore catch-up blips */
+        }
+      })();
+    };
+
     realtime.setHandlers({
       onPresence: (userId, status) => {
         setPresence(userId, status as UserStatus);
@@ -1040,6 +1148,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setPresence(id, "online");
         }
       },
+      onOpen: () => {
+        catchUp();
+      },
+      onClose: () => {
+        /* UI stays usable offline; reconnect is automatic */
+      },
     });
     void realtime.connect();
   }, [
@@ -1049,6 +1163,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUserPing,
     setRequests,
     toast,
+    setMessagesByChannel,
+    setDmMessages,
   ]);
 
   const value = useMemo<StoreValue>(

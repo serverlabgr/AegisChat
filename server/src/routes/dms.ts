@@ -46,11 +46,16 @@ dmRoutes.get("/:threadId/messages", async (c) => {
   );
   if (!ok.rows[0]) return c.json({ error: "Not found" }, 404);
 
+  const limit = Math.min(Number(c.req.query("limit") ?? 200), 200);
   const { rows } = await query(
-    `SELECT id, author_id, content, reply_to_id, edited, created_at
-     FROM dm_messages WHERE thread_id = $1
-     ORDER BY created_at ASC LIMIT 200`,
-    [threadId],
+    `WITH recent AS (
+       SELECT id, author_id, content, reply_to_id, edited, created_at
+       FROM dm_messages WHERE thread_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2
+     )
+     SELECT * FROM recent ORDER BY created_at ASC`,
+    [threadId, limit],
   );
   return c.json({
     messages: rows.map((m) => ({

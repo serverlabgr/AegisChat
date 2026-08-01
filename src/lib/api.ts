@@ -32,6 +32,18 @@ type RequestOpts = {
 
 let refreshInFlight: Promise<TokenPair | null> | null = null;
 
+/** Refresh access token if needed; returns a usable access token or null. */
+export async function ensureFreshAccessToken(): Promise<string | null> {
+  const current = await loadTokens();
+  if (!current) return null;
+  // Always try refresh on reconnect paths — cheap if still valid via WS 401.
+  const next = await refreshTokens();
+  if (next) return next.accessToken;
+  // refreshTokens clears on hard failure; re-read in case refresh wasn't needed
+  const again = await loadTokens();
+  return again?.accessToken ?? null;
+}
+
 async function refreshTokens(): Promise<TokenPair | null> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {

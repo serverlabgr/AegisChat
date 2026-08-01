@@ -41,8 +41,8 @@ services:
       ACCESS_TTL_SEC: ${ACCESS_TTL_SEC:-900}
       REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
       UPLOAD_DIR: /data/uploads
-      # 0 = unlimited (disk is the real limit). Set e.g. 8589934592 for an 8GB cap.
-      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-0}
+      # 2GB default (aligned with Windows client hard-block)
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-2147483648}
       RUN_SEED: ${RUN_SEED:-0}
     volumes:
       - aegis_uploads:/data/uploads

@@ -176,3 +176,20 @@ export async function bootstrapForUser(meApi: ApiUser): Promise<BootstrapPayload
     groups,
   };
 }
+
+/** Refetch + decrypt recent history for catch-up after WS reconnect. */
+export async function fetchChannelMessages(
+  channelId: string,
+): Promise<Message[]> {
+  const { messages } = await api<{ messages: Message[] }>(
+    `/channels/${encodeURIComponent(channelId)}/messages`,
+  );
+  return decryptMessageList(messages);
+}
+
+export async function fetchDmMessages(threadId: string): Promise<Message[]> {
+  const { messages } = await api<{ messages: Message[] }>(
+    `/dms/${encodeURIComponent(threadId)}/messages`,
+  );
+  return decryptMessageList(messages);
+}

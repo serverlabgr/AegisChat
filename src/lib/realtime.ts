@@ -1,5 +1,5 @@
+import { ensureFreshAccessToken, wsUrl } from "./api";
 import { loadTokens } from "./authStorage";
-import { wsUrl } from "./api";
 
 export type RealtimeHandlers = {
   onPresence?: (userId: string, status: string) => void;
@@ -10,6 +10,7 @@ export type RealtimeHandlers = {
   onRtc?: (fromUserId: string, threadId: string, signal: unknown) => void;
   onPong?: (rttMs: number) => void;
   onHello?: (online: string[]) => void;
+  onOpen?: () => void;
   onClose?: () => void;
 };
 
@@ -19,6 +20,7 @@ export class RealtimeClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private handlers: RealtimeHandlers = {};
+  private attempt = 0;
 
   setHandlers(handlers: RealtimeHandlers) {
     this.handlers = handlers;
@@ -26,9 +28,12 @@ export class RealtimeClient {
 
   async connect() {
     this.stopped = false;
-    const tokens = await loadTokens();
-    if (!tokens) return;
-    this.open(tokens.accessToken);
+    const access =
+      (await ensureFreshAccessToken()) ??
+      (await loadTokens())?.accessToken ??
+      null;
+    if (!access) return;
+    this.open(access);
   }
 
   private open(accessToken: string) {
@@ -40,7 +45,9 @@ export class RealtimeClient {
     this.ws = ws;
 
     ws.onopen = () => {
+      this.attempt = 0;
       this.startPing();
+      this.handlers.onOpen?.();
     };
 
     ws.onmessage = (ev) => {
@@ -130,10 +137,12 @@ export class RealtimeClient {
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
+    const delay = Math.min(30_000, 1000 * 2 ** Math.min(this.attempt, 5));
+    this.attempt += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       void this.connect();
-    }, 2000);
+    }, delay);
   }
 
   sendTyping(channelId: string) {
@@ -152,6 +161,7 @@ export class RealtimeClient {
 
   disconnect() {
     this.stopped = true;
+    this.attempt = 0;
     this.stopPing();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;

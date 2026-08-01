@@ -67,27 +67,8 @@ export function GameHostingScreen() {
     };
   }, []);
 
-  // Live telemetry: online servers get small CPU/RAM/player fluctuations.
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setServers((prev) => {
-        if (!prev.some((s) => s.status === "online")) return prev;
-        return prev.map((s) => {
-          if (s.status !== "online") return s;
-          const drift = () => (Math.random() - 0.5) * 8;
-          const playerDrift =
-            Math.random() < 0.25 ? (Math.random() < 0.5 ? -1 : 1) : 0;
-          return {
-            ...s,
-            cpu: clamp(s.cpu + drift(), 8, 96),
-            ram: clamp(s.ram + drift() * 0.6, 15, 92),
-            players: clamp(s.players + playerDrift, 0, s.maxPlayers),
-          };
-        });
-      });
-    }, 2500);
-    return () => clearInterval(tick);
-  }, [setServers]);
+  // Demo only — no fake live telemetry (would look like a real host).
+  // CPU/RAM/players update only when the user starts/stops a mock server.
 
   const toggle = (id: string) => {
     setServers((prev) =>

@@ -8,26 +8,22 @@
 
 Έλεγχος: άνοιξε στο browser `http://192.168.1.235:3001/health` → `{"ok":true}`
 
-## Installer (τοπικό build v0.2.0)
+## Installer
 
-Φάκελος στο PC σου:
-
-`C:\Users\mpoukas\Documents\Cursor Projects\aegis-chat\dist-installers\`
+Προτίμησε GitHub Releases: https://github.com/serverlabgr/AegisChat/releases
 
 | Αρχείο | Χρήση |
 |--------|--------|
-| **Aegis_0.2.0_x64-setup.exe** | Προτεινόμενο (NSIS) — μοίρασέ το στους φίλους |
-| `Aegis_0.2.0_x64_el-GR.msi` | MSI Ελληνικά |
-| `Aegis_0.2.0_x64_en-US.msi` | MSI English |
-| `Aegis_0.2.0_x64-setup.exe.sig` | Υπογραφή για GitHub updater |
+| **Aegis_*_x64-setup.exe** | NSIS — μοίρασέ το στους φίλους |
+| `*.sig` / `latest.json` | Auto-update |
 
-Το build έχει ήδη default **Server URL** = `http://192.168.1.235:3001`.
+Default **Server URL** = `http://192.168.1.235:3001`.
 
-Media (φωτο / video / οποιοδήποτε αρχείο): χωρίς τεχνητό μέγεθος cap στο server (`MAX_UPLOAD_BYTES=0`). Το πραγματικό όριο είναι ο δίσκος του VM (~19GB ελεύθερα). Τα αρχεία μένουν encrypted στο disk volume `aegis_uploads`.
+Media: max **2GB** ανά αρχείο (client + server). Τα αρχεία μένουν encrypted στο volume `aegis_uploads`.
 
 ## Βήματα για κάθε φίλο
 
-1. Τρέξε το `Aegis_0.2.0_x64-setup.exe` (ίδιο LAN ή VPN/Tailscale με το VM).
+1. Τρέξε το `Aegis_*_x64-setup.exe` (ίδιο LAN ή VPN/Tailscale με το VM).
 2. Άνοιξε Aegis → Connect.
 3. Login με τον λογαριασμό σου, ή Register με invite code.
 4. Αν είσαι νέος: βάλε και το **Recovery Key** της παρέας (μία φορά).
@@ -38,12 +34,9 @@ Media (φωτο / video / οποιοδήποτε αρχείο): χωρίς τε�
 - Pass: `changeme123` → άλλαξέ το αμέσως από Ρυθμίσεις → Προφίλ
 - Invite: `parea-x9f2`
 
-## Updates από GitHub (μετά)
+## Updates
 
-1. Repo secrets: `TAURI_SIGNING_PRIVATE_KEY` + `_PASSWORD` (+ `VITE_API_URL`).
-2. `git tag v0.2.1 && git push origin v0.2.1`
-3. Actions → Release Windows ανεβάζει NSIS + `latest.json`
-4. Οι clients: Ρυθμίσεις → Updates
+Ρυθμίσεις → Updates (χωρίς reinstall). Releases από `serverlabgr/AegisChat`.
 
 ## Rebuild τοπικά
 

@@ -37,7 +37,7 @@ export const config = {
   uploadDir: process.env.UPLOAD_DIR ?? "./uploads",
   /**
    * Max encrypted upload size in bytes.
-   * 0 = no artificial cap (disk space is the limit). Default unlimited.
+   * 0 = no artificial cap. Default 2GB (aligned with Windows client).
    */
-  maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 0),
+  maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 2_147_483_648),
 };

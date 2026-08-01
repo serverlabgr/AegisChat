@@ -1,10 +1,40 @@
 # Aegis — deploy & Windows updates
 
-Οδηγός για: **VM server (DB + API + HTTPS)** → **Windows app** → **updates από GitHub Releases**.
+Οδηγός για: **VM server (DB + API)** → **Windows app** → **updates από GitHub Releases**.
 
 ---
 
-## Αρχιτεκτονική
+## LAN mode (παρέα στο ίδιο Wi‑Fi) — τρέχον setup
+
+Χωρίς public domain / Caddy. Στο VM:
+
+```bash
+cd /opt/aegis-chat/deploy
+# .env: POSTGRES_PASSWORD, JWT_SECRET, MAX_UPLOAD_BYTES=2147483648
+docker compose -f docker-compose.lan.yml up -d --build
+curl http://127.0.0.1:3001/health
+```
+
+- API: `http://192.168.1.235:3001`
+- Repo app updates: https://github.com/serverlabgr/AegisChat
+- Backup: `./backup.sh` (SQL + encrypted uploads) — cron ήδη ή:
+
+```bash
+crontab -e
+# 15 3 * * * /opt/aegis-chat/deploy/backup.sh >> /home/craccchat/aegis-backup.log 2>&1
+```
+
+Ενημέρωση API χωρίς git στο VM (από το PC):
+
+```powershell
+scp -r server\* craccchat@192.168.1.235:/opt/aegis-chat/server/
+scp deploy\docker-compose.lan.yml deploy\backup.sh deploy\update.sh craccchat@192.168.1.235:/opt/aegis-chat/deploy/
+ssh craccchat@192.168.1.235 "bash /opt/aegis-chat/deploy/update.sh"
+```
+
+---
+
+## Αρχιτεκτονική (public HTTPS — αργότερα)
 
 ```
 [Windows Aegis.exe]  --HTTPS/WSS-->  [Caddy :443] --> [API :3001] --> [Postgres]
@@ -38,17 +68,18 @@ sudo usermod -aG docker $USER
 ```bash
 sudo mkdir -p /opt && sudo chown $USER:$USER /opt
 cd /opt
-git clone https://github.com/mpoukas/aegis-chat.git
+git clone https://github.com/serverlabgr/AegisChat.git aegis-chat
 cd aegis-chat/deploy
 cp .env.example .env
 nano .env
 ```
 
 Συμπλήρωσε:
-- `DOMAIN` — π.χ. `chat.yourdomain.com`
+- `DOMAIN` — π.χ. `chat.yourdomain.com` (μόνο για Caddy stack)
 - `ACME_EMAIL` — για Let's Encrypt
 - `POSTGRES_PASSWORD` — `openssl rand -base64 32`
 - `JWT_SECRET` — άλλο `openssl rand -base64 32`
+- `MAX_UPLOAD_BYTES=2147483648` (2GB)
 
 ### Άνοιγμα
 
@@ -70,8 +101,10 @@ docker compose exec api npx tsx src/seed.ts
 ```bash
 chmod +x backup.sh update.sh
 # crontab -e
-# 15 3 * * * /opt/aegis-chat/deploy/backup.sh >> /var/log/aegis-backup.log 2>&1
+# 15 3 * * * /opt/aegis-chat/deploy/backup.sh >> /home/craccchat/aegis-backup.log 2>&1
 ```
+
+Αντίγραψε περιοδικά τον φάκελο `deploy/backups/` σε άλλο PC (off-box).
 
 ---
 

@@ -3,7 +3,7 @@ import { ImagePlus, Send, Smile, X, Loader2 } from "lucide-react";
 import type { Message } from "../../data/mock";
 import { useStore } from "../../store/store";
 import { EmojiPicker } from "../common/EmojiPicker";
-import { uploadEncryptedFile } from "../../lib/media";
+import { uploadEncryptedFile, MEDIA_MAX_BYTES, MEDIA_WARN_BYTES } from "../../lib/media";
 import "./MessageInput.css";
 
 interface MessageInputProps {
@@ -32,6 +32,19 @@ export function MessageInput({
       return;
     }
     const list = Array.from(files);
+    const oversized = list.filter((f) => f.size > MEDIA_MAX_BYTES);
+    if (oversized.length) {
+      toast(
+        `Πολύ μεγάλα αρχεία (max 2GB): ${oversized.map((f) => f.name).join(", ")}`,
+      );
+      return;
+    }
+    const large = list.filter((f) => f.size > MEDIA_WARN_BYTES);
+    if (large.length) {
+      toast(
+        `Μεγάλα αρχεία — μπορεί να αργήσει: ${large.map((f) => f.name).join(", ")}`,
+      );
+    }
     setUploading(true);
     setPendingNames(list.map((f) => f.name));
     void (async () => {

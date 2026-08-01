@@ -32,8 +32,23 @@ const loginSchema = z.object({
 
 export const authRoutes = new Hono<AuthVars>();
 
+async function readJson(c: {
+  req: { json: () => Promise<unknown> };
+}): Promise<{ ok: true; data: unknown } | { ok: false; response: Response }> {
+  try {
+    return { ok: true, data: await c.req.json() };
+  } catch {
+    return {
+      ok: false,
+      response: Response.json({ error: "Invalid JSON" }, { status: 400 }),
+    };
+  }
+}
+
 authRoutes.post("/register", async (c) => {
-  const body = registerSchema.safeParse(await c.req.json());
+  const raw = await readJson(c);
+  if (!raw.ok) return raw.response;
+  const body = registerSchema.safeParse(raw.data);
   if (!body.success) {
     return c.json({ error: "Invalid payload", details: body.error.flatten() }, 400);
   }
@@ -106,7 +121,9 @@ authRoutes.post("/register", async (c) => {
 });
 
 authRoutes.post("/login", async (c) => {
-  const body = loginSchema.safeParse(await c.req.json());
+  const raw = await readJson(c);
+  if (!raw.ok) return raw.response;
+  const body = loginSchema.safeParse(raw.data);
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
 
   const { rows } = await query(

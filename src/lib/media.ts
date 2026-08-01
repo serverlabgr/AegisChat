@@ -1,4 +1,4 @@
-import { getApiBase } from "./api";
+import { ensureFreshAccessToken, getApiBase } from "./api";
 import { loadTokens } from "./authStorage";
 import {
   packEncryptedBlob,
@@ -12,28 +12,49 @@ export type MediaMeta = {
   size: number;
 };
 
+/** Soft warn / hard block — WebView OOM risk on full-file AES. */
+export const MEDIA_WARN_BYTES = 500 * 1024 * 1024; // 500MB
+export const MEDIA_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+
 const urlCache = new Map<string, string>();
+
+async function authHeader(): Promise<string> {
+  const access =
+    (await ensureFreshAccessToken()) ?? (await loadTokens())?.accessToken;
+  if (!access) throw new Error("Χρειάζεται login για upload");
+  return `Bearer ${access}`;
+}
 
 /** Encrypt original file bytes (no resize/re-encode) and upload ciphertext. */
 export async function uploadEncryptedFile(file: File): Promise<MediaMeta> {
-  const tokens = await loadTokens();
-  if (!tokens) throw new Error("Χρειάζεται login για upload");
+  if (file.size > MEDIA_MAX_BYTES) {
+    throw new Error(
+      `Το αρχείο ξεπερνά τα 2GB (${(file.size / 1024 / 1024).toFixed(0)}MB). Στείλε μικρότερο.`,
+    );
+  }
 
   const raw = await file.arrayBuffer();
-  // Client-side AES only — original resolution/bitrate untouched inside ciphertext
   const { encryptBytes } = await import("./messageCrypto");
   const { iv, ciphertext } = await encryptBytes(raw);
   const blob = packEncryptedBlob(iv, ciphertext);
 
-  const res = await fetch(`${getApiBase()}/media`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokens.accessToken}`,
-      "Content-Type": "application/octet-stream",
-      "Content-Length": String(blob.size),
-    },
-    body: blob,
-  });
+  const doUpload = async (authorization: string) =>
+    fetch(`${getApiBase()}/media`, {
+      method: "POST",
+      headers: {
+        Authorization: authorization,
+        "Content-Type": "application/octet-stream",
+        "Content-Length": String(blob.size),
+      },
+      body: blob,
+    });
+
+  let authorization = await authHeader();
+  let res = await doUpload(authorization);
+  if (res.status === 401) {
+    authorization = await authHeader();
+    res = await doUpload(authorization);
+  }
   if (!res.ok) {
     const err = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(err?.error ?? `Upload failed (${res.status})`);
@@ -52,12 +73,16 @@ export async function resolveMediaUrl(meta: MediaMeta): Promise<string> {
   const cached = urlCache.get(meta.id);
   if (cached) return cached;
 
-  const tokens = await loadTokens();
-  if (!tokens) throw new Error("No auth");
-
-  const res = await fetch(`${getApiBase()}/media/${meta.id}`, {
-    headers: { Authorization: `Bearer ${tokens.accessToken}` },
+  let authorization = await authHeader();
+  let res = await fetch(`${getApiBase()}/media/${meta.id}`, {
+    headers: { Authorization: authorization },
   });
+  if (res.status === 401) {
+    authorization = await authHeader();
+    res = await fetch(`${getApiBase()}/media/${meta.id}`, {
+      headers: { Authorization: authorization },
+    });
+  }
   if (!res.ok) throw new Error("Media download failed");
 
   const enc = await res.blob();
