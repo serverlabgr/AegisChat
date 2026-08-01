@@ -18,7 +18,7 @@ export function UpdateAvailableModal({
   return (
     <Modal
       title="Νέα έκδοση διαθέσιμη"
-      subtitle="Live update από GitHub — χωρίς νέα εγκατάσταση από την αρχή."
+      subtitle="Κατεβάζει το Setup από GitHub και ανοίγει τον installer (όπως το ToolBox)."
       onClose={onSkip}
       width={440}
     >
@@ -28,8 +28,8 @@ export function UpdateAvailableModal({
           <span>Aegis v{version}</span>
         </div>
         <p className="update-modal__body">
-          Θέλεις να κατεβάσεις και να εγκαταστήσεις την ενημέρωση τώρα; Η εφαρμογή
-          θα επανεκκινηθεί μόνη της.
+          Θέλεις να κατεβάσεις το Setup και να τρέξεις τον installer τώρα; Η εφαρμογή
+          θα κλείσει και θα ανοίξει ο οδηγός εγκατάστασης.
         </p>
         <div className="update-modal__actions">
           <button

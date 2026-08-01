@@ -393,8 +393,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           {tab === "updates" ? (
             <div className="settings__section">
               <p className="settings__hint">
-                Τα live updates έρχονται από GitHub Releases (υπογεγραμμένα με Tauri
-                updater). Διαθέσιμο μόνο στο Windows installer.
+                Τα updates κατεβάζουν το Setup από GitHub Releases και ανοίγουν τον
+                installer (ίδια λογική με ToolBox). Διαθέσιμο μόνο στο desktop app.
               </p>
               {updateInfo ? <p className="settings__hint">{updateInfo}</p> : null}
               <button

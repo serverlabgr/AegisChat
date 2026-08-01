@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Aegis",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "com.aegis.chat",
   "build": {
     "frontendDist": "../dist",
@@ -41,18 +41,20 @@
     ],
     "createUpdaterArtifacts": true,
     "publisher": "Aegis",
+    "homepage": "https://github.com/serverlabgr/AegisChat",
     "shortDescription": "Private chat for your friend group",
     "longDescription": "Aegis is an invite-only desktop chat for your friend group — channels, voice, games and more.",
-    "copyright": "Copyright © Aegis",
+    "copyright": "Copyright © 2026 Aegis",
     "category": "SocialNetworking",
     "windows": {
       "webviewInstallMode": {
-        "type": "embedBootstrapper",
+        "type": "downloadBootstrapper",
         "silent": true
       },
       "nsis": {
         "installMode": "currentUser",
-        "displayLanguageSelector": true,
+        "displayLanguageSelector": false,
+        "compression": "zlib",
         "languages": [
           "Greek",
           "English"
@@ -69,7 +71,7 @@
         "https://github.com/serverlabgr/AegisChat/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "basicUi"
       }
     }
   }

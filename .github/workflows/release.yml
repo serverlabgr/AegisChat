@@ -45,19 +45,50 @@ jobs:
           releaseName: "Aegis v__VERSION__"
           releaseBody: |
             ## Εγκατάσταση (Windows)
-            Κατέβασε το **`Aegis_*_x64-setup.exe`** (NSIS).
 
-            - Desktop shortcut / Start Menu (per-user, χωρίς UAC)
+            ### Προτεινόμενο αν Defender μπλοκάρει το Setup
+            Κατέβασε το **`Aegis_*_windows_x64.zip`**, κάνε unzip και τρέξε `aegis.exe`
+            (απαιτείται WebView2 — υπάρχει ήδη στα περισσότερα Windows 10/11).
+
+            ### NSIS installer
+            Κατέβασε το **`Aegis_*_x64-setup.exe`** (per-user, χωρίς UAC).
+
+            - Desktop shortcut / Start Menu
             - Μετά το άνοιγμα βάλε **Server URL** = `https://YOUR_DOMAIN` (Ρυθμίσεις → Desktop),
               εκτός αν το build έχει ήδη `VITE_API_URL`.
 
             ## Updates
-            Ρυθμίσεις → Updates, ή αποδέξου το prompt όταν ανοίγει η εφαρμογή.
-            Τα updates έρχονται από αυτό το GitHub Release (`latest.json`).
+            Ρυθμίσεις → Updates, ή αποδέξου το prompt — κατεβάζει το Setup και ανοίγει τον installer
+            (ίδια λογική με ToolBox). Τα updates έρχονται από αυτό το GitHub Release (`latest.json`).
 
             ## Server
             Το API/DB τρέχει στο VM σου — δες `DEPLOY.md` στο repo.
+
+            ## LAN fallback
+            Αν το GitHub download μπλοκάρεται: `scripts/serve-installer.ps1 -Path .\Aegis_*_windows_x64.zip`
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
+
+      - name: Upload portable zip (non-NSIS)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = "v$ver"
+          $exe = "src-tauri/target/release/aegis.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Missing $exe — tauri build did not produce the release binary"
+          }
+          $stage = Join-Path $env:RUNNER_TEMP "aegis-portable"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $exe (Join-Path $stage "Aegis.exe")
+          $zipName = "Aegis_${ver}_windows_x64.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zipPath -CompressionLevel Optimal
+          Write-Host "Portable zip: $zipPath ($([math]::Round((Get-Item $zipPath).Length/1MB, 2)) MB)"
+          gh release upload $tag $zipPath --clobber
+          Write-Host "Uploaded $zipName to $tag"
