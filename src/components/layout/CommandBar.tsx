@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Gamepad2,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "@tauri-apps/api/core";
 import { useStore } from "../../store/store";
+import { BUILD_VERSION, getAppVersion } from "../../lib/appVersion";
 import { pingTone } from "../../lib/ping";
 import { HudReadout } from "../common/Hud";
 import "./CommandBar.css";
@@ -23,9 +25,14 @@ async function withWindow(action: (win: ReturnType<typeof getCurrentWindow>) => 
 
 export function CommandBar({ onOpenCommand }: { onOpenCommand: () => void }) {
   const { users, memberIds, currentUserId, getPing } = useStore();
+  const [version, setVersion] = useState(BUILD_VERSION);
   const online = memberIds.filter((id) => users[id]?.status !== "offline").length;
   const ping = getPing(currentUserId);
   const pingLabel = ping == null ? "—" : `${ping}ms`;
+
+  useEffect(() => {
+    void getAppVersion().then(setVersion);
+  }, []);
 
   return (
     <header className="cmdbar" data-tauri-drag-region>
@@ -63,6 +70,10 @@ export function CommandBar({ onOpenCommand }: { onOpenCommand: () => void }) {
         />
         <HudReadout label="mood" value="chill" icon={<Smile size={11} />} />
       </div>
+
+      <span className="cmdbar__version" title={`Aegis v${version}`} aria-label={`Version ${version}`}>
+        v{version}
+      </span>
 
       <div className="cmdbar__controls">
         <button
