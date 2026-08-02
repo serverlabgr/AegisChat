@@ -97,7 +97,8 @@ Write-Host "  Index: $LanBase/"
 if ($RemoveNsisFromGitHub) {
   Write-Host ''
   Write-Host 'Removing NSIS + GitHub latest.json from GitHub Releases (LAN is source of truth)...' -ForegroundColor Yellow
-  foreach ($name in @($setup.Name, 'latest.json')) {
+  $toDelete = @($setup.Name, "$($setup.Name).sig", 'latest.json')
+  foreach ($name in $toDelete) {
     try {
       gh release delete-asset $Tag $name --repo $Repo --yes
       Write-Host "  deleted $name"
