@@ -35,9 +35,17 @@ export function MessageItem({ message, grouped, onReply }: MessageItemProps) {
     dmMessages,
     activeView,
     settings,
+    readCursors,
   } = useStore();
   const author = users[message.authorId];
   const isOwn = message.authorId === currentUserId;
+  const peerSeen =
+    settings.readReceipts &&
+    isOwn &&
+    Object.entries(readCursors[activeView.id] ?? {}).some(
+      ([uid, lastId]) =>
+        uid !== currentUserId && lastId != null && lastId === message.id,
+    );
   const [showPicker, setShowPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const body = decodeMessageBody(message.content);
@@ -166,6 +174,9 @@ export function MessageItem({ message, grouped, onReply }: MessageItemProps) {
                 {body.text}
                 {message.edited ? (
                   <span className="message-item__edited">(edited)</span>
+                ) : null}
+                {peerSeen ? (
+                  <span className="message-item__edited"> · seen</span>
                 ) : null}
               </p>
             ) : null}

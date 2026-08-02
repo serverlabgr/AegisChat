@@ -54,6 +54,7 @@ import {
   handleRtcSignal,
   type RtcSignal,
 } from "../lib/webrtc";
+import type { VoiceParticipant } from "../lib/voiceTypes";
 
 export type ActiveView =
   | { type: "channel"; id: string }
@@ -151,6 +152,10 @@ interface StoreValue {
   setPresence: (userId: string, status: UserStatus) => void;
   ingestChannelMessage: (channelId: string, message: Message) => void;
   ingestDmMessage: (threadId: string, message: Message) => void;
+  sendTyping: () => void;
+  /** targetId → userId → lastMessageId */
+  readCursors: Record<string, Record<string, string | null>>;
+  markRead: (targetId: string, lastMessageId: string | null) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -218,6 +223,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pings, setPings] = useState<Record<string, number | null>>({});
+  const [readCursors, setReadCursors] = usePersisted<
+    Record<string, Record<string, string | null>>
+  >("read-cursors", {});
 
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,9 +233,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const onlineRef = useRef(false);
   const currentUserRef = useRef(currentUserId);
   const activeViewRef = useRef(activeView);
+  const settingsRef = useRef(settings);
+  const usersRef = useRef(users);
   currentUserRef.current = currentUserId;
   onlineRef.current = onlineMode;
   activeViewRef.current = activeView;
+  settingsRef.current = settings;
+  usersRef.current = users;
+
+  const notifyDesktop = useCallback((title: string, body: string) => {
+    if (!settingsRef.current.notifications) return;
+    if (typeof document !== "undefined" && document.hasFocus()) return;
+    try {
+      if (typeof Notification === "undefined") return;
+      if (Notification.permission === "default") {
+        void Notification.requestPermission();
+        return;
+      }
+      if (Notification.permission !== "granted") return;
+      new Notification(title, { body, silent: false });
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const bumpUnread = useCallback((key: string, authorId: string) => {
     if (authorId === currentUserRef.current) return;
@@ -244,17 +272,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 2600);
   }, []);
 
-  const setActiveView = useCallback((view: ActiveView) => {
-    setActiveViewState(view);
-    setUnread((prev) => {
-      const key = currentActiveKey(view);
-      if (!prev[key]) return prev;
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
+  const markRead = useCallback(
+    (targetId: string, lastMessageId: string | null) => {
+      const me = currentUserRef.current;
+      setReadCursors((prev) => ({
+        ...prev,
+        [targetId]: { ...(prev[targetId] ?? {}), [me]: lastMessageId },
+      }));
+      if (settingsRef.current.readReceipts && onlineRef.current) {
+        realtime.sendRead(targetId, lastMessageId);
+      }
+    },
+    [setReadCursors],
+  );
 
+  const setActiveView = useCallback(
+    (view: ActiveView) => {
+      setActiveViewState(view);
+      setUnread((prev) => {
+        const key = currentActiveKey(view);
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
   const ensureDM = useCallback(
     (userId: string): string => {
       const dmId = `dm-${userId}`;
@@ -363,6 +407,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [appendMessage, users],
   );
 
+  const applyReaction = useCallback(
+    (
+      list: Message[],
+      messageId: string,
+      emoji: string,
+      userId: string,
+      added: boolean,
+    ): Message[] =>
+      list.map((m) => {
+        if (m.id !== messageId) return m;
+        const existing = m.reactions.find((r) => r.emoji === emoji);
+        if (added) {
+          if (!existing) {
+            return {
+              ...m,
+              reactions: [...m.reactions, { emoji, userIds: [userId] }],
+            };
+          }
+          if (existing.userIds.includes(userId)) return m;
+          return {
+            ...m,
+            reactions: m.reactions.map((r) =>
+              r.emoji === emoji
+                ? { ...r, userIds: [...r.userIds, userId] }
+                : r,
+            ),
+          };
+        }
+        if (!existing) return m;
+        const nextUsers = existing.userIds.filter((id) => id !== userId);
+        const reactions = nextUsers.length
+          ? m.reactions.map((r) =>
+              r.emoji === emoji ? { ...r, userIds: nextUsers } : r,
+            )
+          : m.reactions.filter((r) => r.emoji !== emoji);
+        return { ...m, reactions };
+      }),
+    [],
+  );
+
   const ingestChannelMessage = useCallback(
     (channelId: string, message: Message) => {
       void (async () => {
@@ -377,14 +461,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         let added = false;
         setMessagesByChannel((prev) => {
           const list = prev[channelId] ?? [];
-          if (list.some((m) => m.id === decoded.id)) return prev;
+          const idx = list.findIndex((m) => m.id === decoded.id);
+          if (idx >= 0) {
+            const next = [...list];
+            next[idx] = {
+              ...decoded,
+              reactions: decoded.reactions?.length
+                ? decoded.reactions
+                : list[idx].reactions,
+            };
+            return { ...prev, [channelId]: next };
+          }
           added = true;
           return { ...prev, [channelId]: [...list, decoded] };
         });
-        if (added) bumpUnread(channelId, decoded.authorId);
+        if (added) {
+          bumpUnread(channelId, decoded.authorId);
+          const author = usersRef.current[decoded.authorId]?.name ?? "Νέο μήνυμα";
+          notifyDesktop(author, content.slice(0, 120) || "Νέο μήνυμα στο κανάλι");
+        }
       })();
     },
-    [setMessagesByChannel, bumpUnread],
+    [setMessagesByChannel, bumpUnread, notifyDesktop],
   );
 
   const ingestDmMessage = useCallback(
@@ -401,7 +499,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         let added = false;
         setDmMessages((prev) => {
           const list = prev[threadId] ?? [];
-          if (list.some((m) => m.id === decoded.id)) return prev;
+          const idx = list.findIndex((m) => m.id === decoded.id);
+          if (idx >= 0) {
+            const next = [...list];
+            next[idx] = {
+              ...decoded,
+              reactions: decoded.reactions?.length
+                ? decoded.reactions
+                : list[idx].reactions,
+            };
+            return { ...prev, [threadId]: next };
+          }
           added = true;
           return { ...prev, [threadId]: [...list, decoded] };
         });
@@ -424,11 +532,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 },
               ],
         );
-        if (added) bumpUnread(threadId, decoded.authorId);
+        if (added) {
+          bumpUnread(threadId, decoded.authorId);
+          const author = usersRef.current[decoded.authorId]?.name ?? "DM";
+          notifyDesktop(author, content.slice(0, 120) || "Νέο προσωπικό μήνυμα");
+        }
       })();
     },
-    [setDmMessages, setDms, bumpUnread],
+    [setDmMessages, setDms, bumpUnread, notifyDesktop],
   );
+
+  const removeChannelMessage = useCallback(
+    (channelId: string, messageId: string) => {
+      setMessagesByChannel((prev) => ({
+        ...prev,
+        [channelId]: (prev[channelId] ?? []).filter((m) => m.id !== messageId),
+      }));
+    },
+    [setMessagesByChannel],
+  );
+
+  const removeDmMessage = useCallback(
+    (threadId: string, messageId: string) => {
+      setDmMessages((prev) => ({
+        ...prev,
+        [threadId]: (prev[threadId] ?? []).filter((m) => m.id !== messageId),
+      }));
+    },
+    [setDmMessages],
+  );
+
+  const sendTyping = useCallback(() => {
+    if (!onlineRef.current) return;
+    const view = activeViewRef.current;
+    if (view.type === "dm" && view.id === "__personal_home__") return;
+    realtime.sendTyping(view.id);
+  }, []);
 
   const setActiveGroup = useCallback(
     (groupId: string) => {
@@ -494,7 +633,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 encrypted: true,
               });
             }
-            realtime.sendTyping(view.id);
           } catch (err) {
             toast(err instanceof Error ? err.message : "Αποτυχία αποστολής");
           }
@@ -563,7 +701,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       void (async () => {
         try {
           const payload = await encryptText(trimmed);
-          await api(`/channels/messages/${messageId}`, {
+          const path =
+            activeView.type === "dm"
+              ? `/dms/messages/${messageId}`
+              : `/channels/messages/${messageId}`;
+          await api(path, {
             method: "PATCH",
             body: { content: payload },
           });
@@ -602,22 +744,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : dmMessages[activeView.id];
       mutateActiveMessages((list) => list.filter((m) => m.id !== messageId));
       if (!onlineRef.current) return;
-      void api(`/channels/messages/${messageId}`, { method: "DELETE" }).catch(
-        (err) => {
-          if (prevSnapshot && activeView.type === "channel") {
-            setMessagesByChannel((prev) => ({
-              ...prev,
-              [activeView.id]: prevSnapshot,
-            }));
-          } else if (prevSnapshot && activeView.type === "dm") {
-            setDmMessages((prev) => ({
-              ...prev,
-              [activeView.id]: prevSnapshot,
-            }));
-          }
-          toast(err instanceof Error ? err.message : "Αποτυχία διαγραφής");
-        },
-      );
+      const path =
+        activeView.type === "dm"
+          ? `/dms/messages/${messageId}`
+          : `/channels/messages/${messageId}`;
+      void api(path, { method: "DELETE" }).catch((err) => {
+        if (prevSnapshot && activeView.type === "channel") {
+          setMessagesByChannel((prev) => ({
+            ...prev,
+            [activeView.id]: prevSnapshot,
+          }));
+        } else if (prevSnapshot && activeView.type === "dm") {
+          setDmMessages((prev) => ({
+            ...prev,
+            [activeView.id]: prevSnapshot,
+          }));
+        }
+        toast(err instanceof Error ? err.message : "Αποτυχία διαγραφής");
+      });
     },
     [
       mutateActiveMessages,
@@ -638,29 +782,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? messagesByChannel[activeView.id]
           : dmMessages[activeView.id];
       mutateActiveMessages((list) =>
-        list.map((m) => {
-          if (m.id !== messageId) return m;
-          const existing = m.reactions.find((r) => r.emoji === emoji);
-          if (!existing) {
-            return {
-              ...m,
-              reactions: [...m.reactions, { emoji, userIds: [me] }],
-            };
-          }
-          const has = existing.userIds.includes(me);
-          const nextUsers = has
-            ? existing.userIds.filter((id) => id !== me)
-            : [...existing.userIds, me];
-          const reactions = nextUsers.length
-            ? m.reactions.map((r) =>
-                r.emoji === emoji ? { ...r, userIds: nextUsers } : r,
-              )
-            : m.reactions.filter((r) => r.emoji !== emoji);
-          return { ...m, reactions };
-        }),
+        applyReaction(
+          list,
+          messageId,
+          emoji,
+          me,
+          !list
+            .find((m) => m.id === messageId)
+            ?.reactions.find((r) => r.emoji === emoji)
+            ?.userIds.includes(me),
+        ),
       );
       if (!onlineRef.current) return;
-      void api(`/channels/messages/${messageId}/reactions`, {
+      const path =
+        activeView.type === "dm"
+          ? `/dms/messages/${messageId}/reactions`
+          : `/channels/messages/${messageId}/reactions`;
+      void api(path, {
         method: "POST",
         body: { emoji },
       }).catch((err) => {
@@ -686,6 +824,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setMessagesByChannel,
       setDmMessages,
       toast,
+      applyReaction,
     ],
   );
 
@@ -1126,9 +1265,68 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       onMessage: (channelId, message) => {
         ingestChannelMessage(channelId, message as Message);
+        const view = activeViewRef.current;
+        if (
+          view.type === "channel" &&
+          view.id === channelId &&
+          settingsRef.current.readReceipts
+        ) {
+          const msg = message as Message;
+          markRead(channelId, msg.id);
+        }
+      },
+      onMessageUpdated: (channelId, message) => {
+        ingestChannelMessage(channelId, message as Message);
+      },
+      onMessageDeleted: (channelId, messageId) => {
+        removeChannelMessage(channelId, messageId);
+      },
+      onReaction: (channelId, messageId, emoji, userId, added) => {
+        setMessagesByChannel((prev) => ({
+          ...prev,
+          [channelId]: applyReaction(
+            prev[channelId] ?? [],
+            messageId,
+            emoji,
+            userId,
+            added,
+          ),
+        }));
       },
       onDm: (threadId, message) => {
         ingestDmMessage(threadId, message as Message);
+        const view = activeViewRef.current;
+        if (
+          view.type === "dm" &&
+          view.id === threadId &&
+          settingsRef.current.readReceipts
+        ) {
+          markRead(threadId, (message as Message).id);
+        }
+      },
+      onDmUpdated: (threadId, message) => {
+        ingestDmMessage(threadId, message as Message);
+      },
+      onDmDeleted: (threadId, messageId) => {
+        removeDmMessage(threadId, messageId);
+      },
+      onDmReaction: (threadId, messageId, emoji, userId, added) => {
+        setDmMessages((prev) => ({
+          ...prev,
+          [threadId]: applyReaction(
+            prev[threadId] ?? [],
+            messageId,
+            emoji,
+            userId,
+            added,
+          ),
+        }));
+      },
+      onRead: (targetId, userId, lastMessageId) => {
+        setReadCursors((prev) => ({
+          ...prev,
+          [targetId]: { ...(prev[targetId] ?? {}), [userId]: lastMessageId },
+        }));
       },
       onFriendRequest: (request) => {
         const req = request as PendingRequest;
@@ -1140,6 +1338,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onRtc: (fromUserId, threadId, signal) => {
         void handleRtcSignal(fromUserId, threadId, signal as RtcSignal);
       },
+      onVoiceState: (channelId, participants: VoiceParticipant[]) => {
+        setVoice((prev) => ({
+          ...prev,
+          participants: {
+            ...prev.participants,
+            [channelId]: participants.map((p) => p.userId),
+          },
+        }));
+      },
       onPong: (rttMs) => {
         setUserPing(currentUserRef.current, rttMs);
       },
@@ -1150,6 +1357,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       onOpen: () => {
         catchUp();
+        if (
+          settingsRef.current.notifications &&
+          typeof Notification !== "undefined" &&
+          Notification.permission === "default"
+        ) {
+          void Notification.requestPermission();
+        }
       },
       onClose: () => {
         /* UI stays usable offline; reconnect is automatic */
@@ -1160,11 +1374,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPresence,
     ingestChannelMessage,
     ingestDmMessage,
+    removeChannelMessage,
+    removeDmMessage,
+    applyReaction,
+    markRead,
     setUserPing,
     setRequests,
     toast,
     setMessagesByChannel,
     setDmMessages,
+    setReadCursors,
   ]);
 
   const value = useMemo<StoreValue>(
@@ -1220,6 +1439,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPresence,
       ingestChannelMessage,
       ingestDmMessage,
+      sendTyping,
+      readCursors,
+      markRead,
     }),
     [
       currentUserId,
@@ -1273,6 +1495,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPresence,
       ingestChannelMessage,
       ingestDmMessage,
+      sendTyping,
+      readCursors,
+      markRead,
     ],
   );
 

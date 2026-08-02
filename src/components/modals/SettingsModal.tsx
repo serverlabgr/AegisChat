@@ -20,6 +20,7 @@ import { loadServerUrl, saveServerUrl } from "../../lib/serverConfig";
 import { getRecoveryKeyForDisplay } from "../../lib/vault";
 import { copyText } from "../../lib/clipboard";
 import { api, changePassword } from "../../lib/api";
+import { BUILD_VERSION, getAppVersion } from "../../lib/appVersion";
 import { isTauri } from "@tauri-apps/api/core";
 import "./SettingsModal.css";
 
@@ -73,7 +74,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [curPass, setCurPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [passBusy, setPassBusy] = useState(false);
+  const [appVersion, setAppVersion] = useState(BUILD_VERSION);
   const desktop = isTauri();
+
+  useEffect(() => {
+    void getAppVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     if (!desktop) return;
@@ -393,8 +399,13 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           {tab === "updates" ? (
             <div className="settings__section">
               <p className="settings__hint">
-                Τα updates κατεβάζουν το Setup από GitHub Releases και ανοίγουν τον
-                installer (ίδια λογική με ToolBox). Διαθέσιμο μόνο στο desktop app.
+                Τρέχουσα έκδοση: <strong>v{appVersion}</strong>
+              </p>
+              <p className="settings__hint">
+                Τα updates κατεβάζουν το Setup από τον LAN updater (
+                <code>http://192.168.1.235:8080</code>) — όχι από GitHub Releases.
+                Διαθέσιμο μόνο στο desktop app. Μην κατεβάζεις το .exe από GitHub
+                (false positive Defender).
               </p>
               {updateInfo ? <p className="settings__hint">{updateInfo}</p> : null}
               <button
@@ -409,7 +420,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                       const res = await checkForAppUpdate();
                       if (!res.available) {
                         setUpdateInfo(
-                          "Είσαι στην τελευταία έκδοση (ή δεν υπάρχει ακόμα release).",
+                          `Είσαι στην τελευταία έκδοση (v${appVersion}).`,
                         );
                         toast("Δεν βρέθηκε νέο update");
                         return;

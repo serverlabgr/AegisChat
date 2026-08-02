@@ -77,6 +77,45 @@ function dedupeReactions(
   return [...map.entries()].map(([emoji, userIds]) => ({ emoji, userIds }));
 }
 
+async function loadChannelMessage(messageId: string) {
+  const { rows } = await query(
+    `SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to_id, m.edited, m.created_at,
+            COALESCE(
+              (
+                SELECT json_agg(json_build_object('emoji', emoji, 'userIds', user_ids))
+                FROM (
+                  SELECT emoji, json_agg(user_id) AS user_ids
+                  FROM message_reactions
+                  WHERE message_id = m.id
+                  GROUP BY emoji
+                ) sub
+              ),
+              '[]'
+            ) AS reactions
+     FROM messages m
+     WHERE m.id = $1`,
+    [messageId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    channelId: row.channel_id as string,
+    message: {
+      id: row.id,
+      authorId: row.author_id,
+      content: row.content,
+      timestamp: new Date(row.created_at).getTime(),
+      encrypted: true,
+      edited: row.edited,
+      replyToId: row.reply_to_id ?? undefined,
+      reactions: Array.isArray(row.reactions)
+        ? dedupeReactions(row.reactions)
+        : [],
+    },
+  };
+}
+
 channelRoutes.post("/:id/messages", async (c) => {
   const channelId = c.req.param("id");
   const body = z
@@ -132,19 +171,14 @@ channelRoutes.patch("/messages/:messageId", async (c) => {
     [body.data.content, messageId, c.get("userId")],
   );
   if (!rows[0]) return c.json({ error: "Not found" }, 404);
-  const row = rows[0];
-  const message = {
-    id: row.id,
-    authorId: row.author_id,
-    content: row.content,
-    timestamp: new Date(row.created_at).getTime(),
-    encrypted: true,
-    edited: true,
-    replyToId: row.reply_to_id ?? undefined,
-    reactions: [],
-  };
-  broadcast({ type: "message", channelId: row.channel_id, message });
-  return c.json({ message });
+  const loaded = await loadChannelMessage(messageId);
+  if (!loaded) return c.json({ error: "Not found" }, 404);
+  broadcast({
+    type: "message_updated",
+    channelId: loaded.channelId,
+    message: loaded.message,
+  });
+  return c.json({ message: loaded.message });
 });
 
 channelRoutes.delete("/messages/:messageId", async (c) => {
@@ -155,6 +189,11 @@ channelRoutes.delete("/messages/:messageId", async (c) => {
     [messageId, c.get("userId")],
   );
   if (!rows[0]) return c.json({ error: "Not found" }, 404);
+  broadcast({
+    type: "message_deleted",
+    channelId: rows[0].channel_id,
+    messageId: rows[0].id,
+  });
   return c.json({ ok: true, id: rows[0].id, channelId: rows[0].channel_id });
 });
 
@@ -164,15 +203,24 @@ channelRoutes.post("/messages/:messageId/reactions", async (c) => {
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
   const userId = c.get("userId");
 
+  const msg = await query(
+    `SELECT id, channel_id FROM messages WHERE id = $1`,
+    [messageId],
+  );
+  if (!msg.rows[0]) return c.json({ error: "Not found" }, 404);
+  const channelId = msg.rows[0].channel_id as string;
+
   const existing = await query(
     `SELECT 1 FROM message_reactions WHERE message_id = $1 AND emoji = $2 AND user_id = $3`,
     [messageId, body.data.emoji, userId],
   );
+  let added = true;
   if (existing.rows.length) {
     await query(
       `DELETE FROM message_reactions WHERE message_id = $1 AND emoji = $2 AND user_id = $3`,
       [messageId, body.data.emoji, userId],
     );
+    added = false;
   } else {
     await query(
       `INSERT INTO message_reactions (message_id, emoji, user_id) VALUES ($1, $2, $3)
@@ -180,5 +228,13 @@ channelRoutes.post("/messages/:messageId/reactions", async (c) => {
       [messageId, body.data.emoji, userId],
     );
   }
-  return c.json({ ok: true });
+  broadcast({
+    type: "reaction",
+    channelId,
+    messageId,
+    emoji: body.data.emoji,
+    userId,
+    added,
+  });
+  return c.json({ ok: true, added });
 });
