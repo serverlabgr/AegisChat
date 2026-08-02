@@ -7,6 +7,8 @@ export interface RadioStation {
   listeners: number;
   color: string;
   live?: boolean;
+  /** Public stream URL (HTML5 audio) */
+  streamUrl?: string;
 }
 
 export interface RadioTrack {
@@ -16,24 +18,64 @@ export interface RadioTrack {
 }
 
 export const radioStations: RadioStation[] = [
-  { id: "lofi", name: "Lo-Fi Beats", genre: "Chill · Study", listeners: 4, color: "#7c8cff", live: true },
-  { id: "synth", name: "Neon Synthwave", genre: "Retro · Drive", listeners: 3, color: "#f472d0" },
-  { id: "ost", name: "Game OST Radio", genre: "Epic · Adventure", listeners: 2, color: "#5cc8ff" },
-  { id: "phonk", name: "Phonk Garage", genre: "Hard · Hype", listeners: 5, color: "#ffb454" },
-  { id: "jazz", name: "Late Night Jazz", genre: "Smooth · Lounge", listeners: 1, color: "#4be0a8" },
-  { id: "rock", name: "Indie Rock", genre: "Guitars · Energy", listeners: 2, color: "#ff6b81" },
+  {
+    id: "lofi",
+    name: "SomaFM Groove Salad",
+    genre: "Chill · Ambient",
+    listeners: 0,
+    color: "#7c8cff",
+    live: true,
+    streamUrl: "https://ice1.somafm.com/groovesalad-128-mp3",
+  },
+  {
+    id: "synth",
+    name: "SomaFM Space Station",
+    genre: "Electronica",
+    listeners: 0,
+    color: "#f472d0",
+    streamUrl: "https://ice1.somafm.com/spacestation-128-mp3",
+  },
+  {
+    id: "ost",
+    name: "SomaFM Drone Zone",
+    genre: "Ambient · Focus",
+    listeners: 0,
+    color: "#5cc8ff",
+    streamUrl: "https://ice1.somafm.com/dronezone-128-mp3",
+  },
+  {
+    id: "jazz",
+    name: "SomaFM Sonic Universe",
+    genre: "Jazz · Fusion",
+    listeners: 0,
+    color: "#4be0a8",
+    streamUrl: "https://ice1.somafm.com/sonicuniverse-128-mp3",
+  },
+  {
+    id: "rock",
+    name: "SomaFM Indie Pop Rocks",
+    genre: "Indie · Rock",
+    listeners: 0,
+    color: "#ff6b81",
+    streamUrl: "https://ice1.somafm.com/indiepop-128-mp3",
+  },
+  {
+    id: "custom",
+    name: "Custom URL",
+    genre: "Δική σου ροή",
+    listeners: 0,
+    color: "#ffb454",
+  },
 ];
 
 export const radioQueue: RadioTrack[] = [
-  { title: "Midnight Protocol", artist: "Kavinsky Jr.", album: "Neon Nights" },
-  { title: "Drift Sequence", artist: "Nightcall", album: "Overdrive" },
-  { title: "Purple Rain (Synth)", artist: "VHS Dreams", album: "Retrowave 84" },
+  { title: "Live stream", artist: "SomaFM", album: "LAN Radio" },
 ];
 
 export interface GameServer {
   id: string;
   game: string;
-  status: "online" | "offline" | "starting";
+  status: "online" | "offline" | "starting" | "stopping";
   players: number;
   maxPlayers: number;
   region: string;
@@ -41,22 +83,19 @@ export interface GameServer {
   cpu: number;
   ram: number;
   icon: string;
+  templateId?: string;
+  notes?: string;
 }
 
-export const gameServers: GameServer[] = [
-  { id: "mc", game: "Minecraft", status: "online", players: 6, maxPlayers: 20, region: "EU-Athens", node: "xeon-2699v4", cpu: 34, ram: 48, icon: "⛏️" },
-  { id: "cs", game: "Counter-Strike 2", status: "online", players: 8, maxPlayers: 10, region: "EU-Athens", node: "xeon-2697v3", cpu: 62, ram: 55, icon: "🔫" },
-  { id: "valheim", game: "Valheim", status: "starting", players: 0, maxPlayers: 10, region: "EU-Athens", node: "xeon-2667v3", cpu: 12, ram: 20, icon: "🪓" },
-  { id: "rust", game: "Rust", status: "offline", players: 0, maxPlayers: 50, region: "EU-Athens", node: "xeon-2697v3", cpu: 0, ram: 0, icon: "🏕️" },
-];
+export const gameServers: GameServer[] = [];
 
 export const gameCatalog = [
-  { id: "palworld", name: "Palworld", icon: "🐾" },
+  { id: "minecraft", name: "Minecraft", icon: "⛏️" },
+  { id: "cs2", name: "Counter-Strike 2", icon: "🔫" },
+  { id: "valheim", name: "Valheim", icon: "🪓" },
+  { id: "rust", name: "Rust", icon: "🏕️" },
   { id: "terraria", name: "Terraria", icon: "🌳" },
   { id: "factorio", name: "Factorio", icon: "⚙️" },
-  { id: "ark", name: "ARK", icon: "🦖" },
-  { id: "enshrouded", name: "Enshrouded", icon: "🌫️" },
-  { id: "satisfactory", name: "Satisfactory", icon: "🏭" },
 ];
 
 export interface ApiKey {
@@ -67,10 +106,7 @@ export interface ApiKey {
   scopes: string[];
 }
 
-export const apiKeys: ApiKey[] = [
-  { id: "k1", label: "Bot · PartyBot", key: "aeg_live_8f3kQm2xVr7Lp0Wd9vQ2", created: "πριν 3 μέρες", scopes: ["messages", "voice"] },
-  { id: "k2", label: "Webhook · CI", key: "aeg_live_2m1aZk8sBt4Ny6Jc7pLx", created: "πριν 2 βδομάδες", scopes: ["webhooks"] },
-];
+export const apiKeys: ApiKey[] = [];
 
 export interface Bot {
   id: string;
@@ -80,11 +116,7 @@ export interface Bot {
   icon: string;
 }
 
-export const bots: Bot[] = [
-  { id: "b1", name: "PartyBot", desc: "Μουσική & queue στα voice", online: true, icon: "🎵" },
-  { id: "b2", name: "ModGuard", desc: "Auto-moderation & logs", online: true, icon: "🛡️" },
-  { id: "b3", name: "StatBot", desc: "Game stats & leaderboards", online: false, icon: "📊" },
-];
+export const bots: Bot[] = [];
 
 export interface Webhook {
   id: string;
@@ -93,10 +125,7 @@ export interface Webhook {
   events: number;
 }
 
-export const webhooks: Webhook[] = [
-  { id: "w1", name: "GitHub → #dev-talk", target: "https://…/hooks/gh", events: 128 },
-  { id: "w2", name: "Uptime → #general", target: "https://…/hooks/up", events: 42 },
-];
+export const webhooks: Webhook[] = [];
 
 import type { Channel } from "./mock";
 

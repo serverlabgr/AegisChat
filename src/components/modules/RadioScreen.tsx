@@ -1,68 +1,159 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Radio,
   Play,
   Pause,
-  SkipForward,
-  SkipBack,
   Volume2,
   VolumeX,
-  Heart,
   Users,
 } from "lucide-react";
-import { radioStations, radioQueue } from "../../data/modules";
+import { radioStations } from "../../data/modules";
 import { useStore } from "../../store/store";
 import { usePersisted } from "../../lib/persist";
-import { Avatar } from "../common/Avatar";
-import { SoonBanner } from "./SoonBanner";
+import { api } from "../../lib/api";
+import type { RadioState } from "../../lib/voiceTypes";
 import "./module.css";
 import "./RadioScreen.css";
 
-const TRACK_SECONDS = 45;
-
 export function RadioScreen() {
-  const { users, toast } = useStore();
+  const { toast, onlineMode, memberIds, users } = useStore();
   const [stationId, setStationId] = useState("lofi");
-  const [playing, setPlaying] = useState(true);
+  const [customUrl, setCustomUrl] = usePersisted("radio-custom-url", "");
+  const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = usePersisted("radio-volume", 70);
-  const [trackIdx, setTrackIdx] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [liked, setLiked] = usePersisted<string[]>("radio-liked", []);
+  const [title, setTitle] = useState("Σίγαση");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const applyingRemote = useRef(false);
 
   const station = radioStations.find((s) => s.id === stationId) ?? radioStations[0];
-  const track = radioQueue[((trackIdx % radioQueue.length) + radioQueue.length) % radioQueue.length];
-  const listeners = ["u2", "u4", "u5"].map((id) => users[id]).filter(Boolean);
-  const isLiked = liked.includes(track.title);
+  const streamUrl =
+    stationId === "custom" ? customUrl.trim() : (station.streamUrl ?? "");
 
-  // Simulated playback: tick elapsed time, auto-advance to the next track.
-  useEffect(() => {
-    if (!playing) return;
-    const tick = setInterval(() => {
-      setElapsed((e) => {
-        if (e + 1 >= TRACK_SECONDS) {
-          setTrackIdx((i) => i + 1);
-          return 0;
-        }
-        return e + 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [playing]);
+  const listeners = memberIds
+    .map((id) => users[id])
+    .filter(Boolean)
+    .slice(0, 6);
 
-  const changeTrack = (dir: 1 | -1) => {
-    setTrackIdx((i) => i + dir);
-    setElapsed(0);
-  };
-
-  const toggleLike = () => {
-    setLiked((prev) =>
-      isLiked ? prev.filter((t) => t !== track.title) : [...prev, track.title],
+  const pushState = (patch: Partial<RadioState>) => {
+    if (!onlineMode || applyingRemote.current) return;
+    void api("/radio/state", {
+      method: "POST",
+      body: {
+        trackUrl: patch.trackUrl ?? streamUrl,
+        title: patch.title ?? (stationId === "custom" ? "Custom" : station.name),
+        playing: patch.playing ?? playing,
+        position: patch.position ?? audioRef.current?.currentTime ?? 0,
+      },
+    }).catch((err) =>
+      toast(err instanceof Error ? err.message : "Αποτυχία radio sync"),
     );
-    toast(isLiked ? "Αφαιρέθηκε από τα αγαπημένα" : `❤️ «${track.title}» στα αγαπημένα`);
   };
 
-  const fmt = (s: number) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const applyState = (state: RadioState) => {
+    applyingRemote.current = true;
+    setTitle(state.title || "Live");
+    setPlaying(state.playing);
+    const audio = audioRef.current;
+    if (audio) {
+      if (state.trackUrl && audio.src !== state.trackUrl) {
+        audio.src = state.trackUrl;
+      }
+      if (state.playing) {
+        void audio.play().catch(() => undefined);
+      } else {
+        audio.pause();
+      }
+      if (Math.abs((audio.currentTime || 0) - state.position) > 2) {
+        try {
+          audio.currentTime = state.position;
+        } catch {
+          /* streams may not seek */
+        }
+      }
+    }
+    // Match preset by URL
+    const match = radioStations.find((s) => s.streamUrl === state.trackUrl);
+    if (match) setStationId(match.id);
+    else if (state.trackUrl) {
+      setStationId("custom");
+      setCustomUrl(state.trackUrl);
+    }
+    queueMicrotask(() => {
+      applyingRemote.current = false;
+    });
+  };
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "none";
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume / 100;
+  }, [volume]);
+
+  useEffect(() => {
+    const onState = (ev: Event) => {
+      const detail = (ev as CustomEvent<RadioState>).detail;
+      if (detail) applyState(detail);
+    };
+    window.addEventListener("aegis-radio-state", onState);
+    return () => window.removeEventListener("aegis-radio-state", onState);
+  }, []);
+
+  useEffect(() => {
+    if (!onlineMode) return;
+    void api<{ state: RadioState }>("/radio/state")
+      .then((r) => applyState(r.state))
+      .catch(() => undefined);
+  }, [onlineMode]);
+
+  const selectStation = (id: string) => {
+    setStationId(id);
+    const s = radioStations.find((x) => x.id === id);
+    const url = id === "custom" ? customUrl.trim() : (s?.streamUrl ?? "");
+    if (!url) {
+      toast("Βάλε URL ροής");
+      return;
+    }
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = url;
+      void audio.play().catch(() => toast("Δεν παίζει η ροή (CORS/δίκτυο)"));
+    }
+    setPlaying(true);
+    setTitle(id === "custom" ? "Custom" : (s?.name ?? "Radio"));
+    pushState({
+      trackUrl: url,
+      title: id === "custom" ? "Custom" : s?.name,
+      playing: true,
+      position: 0,
+    });
+    toast(`Συντονίστηκες στο ${id === "custom" ? "Custom" : s?.name}`);
+  };
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!streamUrl) {
+      toast("Διάλεξε σταθμό ή βάλε URL");
+      return;
+    }
+    if (!audio.src) audio.src = streamUrl;
+    const next = !playing;
+    if (next) void audio.play().catch(() => toast("Αποτυχία playback"));
+    else audio.pause();
+    setPlaying(next);
+    pushState({ playing: next, trackUrl: streamUrl });
+  };
 
   return (
     <div className="module">
@@ -71,58 +162,42 @@ export function RadioScreen() {
           <Radio size={18} />
         </span>
         <span className="module__title">Online Radio</span>
-        <span className="module__sub">ακούστε μαζί, live</span>
+        <span className="module__sub">συγχρονισμένο στην παρέα</span>
       </header>
 
       <div className="module__body radio__body">
-        <SoonBanner feature="Radio" />
         <div
           className="radio__now card"
           style={{
             background: `linear-gradient(135deg, ${station.color}33, rgba(20,26,48,0.6))`,
           }}
         >
-          <div className="radio__art" style={{ background: `linear-gradient(145deg, ${station.color}, #7c8cff)` }}>
+          <div
+            className="radio__art"
+            style={{
+              background: `linear-gradient(145deg, ${station.color}, #7c8cff)`,
+            }}
+          >
             <div className={`radio__eq${playing ? " radio__eq--on" : ""}`}>
-              <span /><span /><span /><span /><span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
             </div>
           </div>
 
           <div className="radio__now-info">
             <span className="radio__now-label">
               <span className="dot dot--online" />
-              LIVE · {station.name}
+              {playing ? "LIVE" : "PAUSED"} · {title}
             </span>
-            <h2>{track.title}</h2>
-            <p>{track.artist} — {track.album}</p>
-
-            <div className="radio__progress">
-              <span>{fmt(elapsed)}</span>
-              <div className="radio__progress-bar">
-                <div
-                  className="radio__progress-fill"
-                  style={{ width: `${(elapsed / TRACK_SECONDS) * 100}%` }}
-                />
-              </div>
-              <span>{fmt(TRACK_SECONDS)}</span>
-            </div>
+            <h2>{station.name}</h2>
+            <p>{station.genre}</p>
 
             <div className="radio__controls">
-              <button onClick={() => changeTrack(-1)} title="Προηγούμενο">
-                <SkipBack size={18} />
-              </button>
-              <button className="radio__play" onClick={() => setPlaying((p) => !p)}>
+              <button className="radio__play" onClick={togglePlay}>
                 {playing ? <Pause size={22} /> : <Play size={22} />}
-              </button>
-              <button onClick={() => changeTrack(1)} title="Επόμενο">
-                <SkipForward size={18} />
-              </button>
-              <button
-                className={`radio__like${isLiked ? " radio__like--on" : ""}`}
-                onClick={toggleLike}
-                title={isLiked ? "Στα αγαπημένα" : "Πρόσθεσε στα αγαπημένα"}
-              >
-                <Heart size={17} fill={isLiked ? "currentColor" : "none"} />
               </button>
               <div className="radio__volume">
                 <button
@@ -145,12 +220,26 @@ export function RadioScreen() {
 
           <div className="radio__together">
             <span className="radio__together-label">
-              <Users size={13} /> Ακούνε τώρα
+              <Users size={13} /> Online
             </span>
             <div className="radio__together-avatars">
               {listeners.map((u) => (
                 <div key={u.id} className="radio__together-avatar">
-                  <Avatar user={u} size={30} />
+                  {/* Avatar via initials if needed */}
+                  <span
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      background: u.color,
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {u.name.slice(0, 1)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -165,20 +254,13 @@ export function RadioScreen() {
               <button
                 key={s.id}
                 className={`card card--hover radio-station${active ? " radio-station--active" : ""}`}
-                onClick={() => {
-                  if (active) {
-                    setPlaying((p) => !p);
-                  } else {
-                    setStationId(s.id);
-                    setPlaying(true);
-                    setElapsed(0);
-                    toast(`Συντονίστηκες στο ${s.name}`);
-                  }
-                }}
+                onClick={() => selectStation(s.id)}
               >
                 <span
                   className="radio-station__art"
-                  style={{ background: `linear-gradient(145deg, ${s.color}, #7c8cff)` }}
+                  style={{
+                    background: `linear-gradient(145deg, ${s.color}, #7c8cff)`,
+                  }}
                 >
                   {active && playing ? <Pause size={18} /> : <Play size={18} />}
                 </span>
@@ -186,26 +268,23 @@ export function RadioScreen() {
                   <span className="radio-station__name">{s.name}</span>
                   <span className="radio-station__genre">{s.genre}</span>
                 </div>
-                <span className="radio-station__listeners">
-                  <Users size={12} />
-                  {s.listeners}
-                </span>
               </button>
             );
           })}
         </div>
 
-        {liked.length > 0 ? (
-          <>
-            <div className="module__section-title">Αγαπημένα — {liked.length}</div>
-            <div className="radio__liked">
-              {liked.map((title) => (
-                <span key={title} className="chip">
-                  <Heart size={11} fill="currentColor" /> {title}
-                </span>
-              ))}
-            </div>
-          </>
+        {stationId === "custom" ? (
+          <label className="settings__field" style={{ marginTop: 16, display: "block" }}>
+            <span>Stream URL</span>
+            <input
+              value={customUrl}
+              onChange={(e) => setCustomUrl(e.target.value)}
+              onBlur={() => {
+                if (customUrl.trim()) selectStation("custom");
+              }}
+              placeholder="https://…/stream.mp3"
+            />
+          </label>
         ) : null}
       </div>
     </div>

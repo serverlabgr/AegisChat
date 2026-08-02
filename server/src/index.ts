@@ -10,6 +10,9 @@ import { friendRoutes } from "./routes/friends.js";
 import { dmRoutes } from "./routes/dms.js";
 import { cryptoRoutes } from "./routes/crypto.js";
 import { mediaRoutes } from "./routes/media.js";
+import { radioRoutes } from "./routes/radio.js";
+import { gameRoutes } from "./routes/games.js";
+import { tokenRoutes, hookRoutes } from "./routes/tokens.js";
 import { attachWebSocket } from "./ws.js";
 
 const app = new Hono();
@@ -82,6 +85,10 @@ app.route("/friends", friendRoutes);
 app.route("/dms", dmRoutes);
 app.route("/crypto", cryptoRoutes);
 app.route("/media", mediaRoutes);
+app.route("/radio", radioRoutes);
+app.route("/games", gameRoutes);
+app.route("/tokens", tokenRoutes);
+app.route("/hooks", hookRoutes);
 
 const server = serve(
   {
