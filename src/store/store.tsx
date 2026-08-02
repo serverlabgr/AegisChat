@@ -55,6 +55,14 @@ import {
   type RtcSignal,
 } from "../lib/webrtc";
 import type { VoiceParticipant } from "../lib/voiceTypes";
+import {
+  handleVoiceSignal,
+  joinVoiceMesh,
+  leaveVoiceMesh,
+  setLocalVoiceState,
+  syncVoiceParticipants,
+  type VoiceSignal,
+} from "../lib/voiceMesh";
 
 export type ActiveView =
   | { type: "channel"; id: string }
@@ -895,22 +903,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [setSettings],
   );
 
-  const joinVoice = useCallback((channelId: string) => {
-    const me = currentUserRef.current;
-    setVoice((prev) => {
-      const participants = { ...prev.participants };
-      if (prev.channelId) {
-        participants[prev.channelId] = (participants[prev.channelId] ?? []).filter(
-          (id) => id !== me,
-        );
+  const joinVoice = useCallback(
+    (channelId: string) => {
+      const me = currentUserRef.current;
+      setVoice((prev) => {
+        const participants = { ...prev.participants };
+        if (prev.channelId) {
+          participants[prev.channelId] = (
+            participants[prev.channelId] ?? []
+          ).filter((id) => id !== me);
+        }
+        participants[channelId] = [
+          ...(participants[channelId] ?? []).filter((id) => id !== me),
+          me,
+        ];
+        return { ...prev, channelId, participants };
+      });
+      if (onlineRef.current) {
+        void (async () => {
+          try {
+            await joinVoiceMesh(channelId, me, false, false, []);
+          } catch (err) {
+            toast(
+              err instanceof Error
+                ? err.message
+                : "Δεν ανοίγει το μικρόφωνο",
+            );
+            setVoice((prev) => ({
+              ...prev,
+              channelId: null,
+              participants: {
+                ...prev.participants,
+                [channelId]: (prev.participants[channelId] ?? []).filter(
+                  (id) => id !== me,
+                ),
+              },
+            }));
+          }
+        })();
       }
-      participants[channelId] = [
-        ...(participants[channelId] ?? []).filter((id) => id !== me),
-        me,
-      ];
-      return { ...prev, channelId, participants };
-    });
-  }, []);
+    },
+    [toast],
+  );
 
   const leaveVoice = useCallback(() => {
     const me = currentUserRef.current;
@@ -922,16 +956,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return { ...prev, channelId: null, participants };
     });
+    void leaveVoiceMesh(true);
   }, []);
 
   const toggleMute = useCallback(() => {
-    setVoice((prev) => ({ ...prev, muted: !prev.muted }));
+    setVoice((prev) => {
+      const muted = !prev.muted;
+      if (prev.channelId && onlineRef.current) {
+        setLocalVoiceState(muted, prev.deafened);
+      }
+      return { ...prev, muted };
+    });
   }, []);
 
   const toggleDeafen = useCallback(() => {
     setVoice((prev) => {
       const deafened = !prev.deafened;
-      return { ...prev, deafened, muted: deafened ? true : prev.muted };
+      const muted = deafened ? true : prev.muted;
+      if (prev.channelId && onlineRef.current) {
+        setLocalVoiceState(muted, deafened);
+      }
+      return { ...prev, deafened, muted };
     });
   }, []);
 
@@ -1346,6 +1391,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             [channelId]: participants.map((p) => p.userId),
           },
         }));
+        void syncVoiceParticipants(participants);
+      },
+      onVoiceSignal: (channelId, fromUserId, toUserId, signal) => {
+        void handleVoiceSignal(
+          channelId,
+          fromUserId,
+          toUserId,
+          signal as VoiceSignal,
+        );
+      },
+      onRadioState: (state) => {
+        window.dispatchEvent(
+          new CustomEvent("aegis-radio-state", { detail: state }),
+        );
+      },
+      onGameSession: (session, action) => {
+        window.dispatchEvent(
+          new CustomEvent("aegis-game-session", { detail: { session, action } }),
+        );
       },
       onPong: (rttMs) => {
         setUserPing(currentUserRef.current, rttMs);

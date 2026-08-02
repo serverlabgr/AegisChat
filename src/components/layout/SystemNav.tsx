@@ -48,13 +48,11 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
     groups,
     homeChannels,
     voice,
-    joinVoice: _joinVoice,
+    joinVoice,
     leaveVoice,
     toggleMute,
     toggleDeafen,
-    toast,
   } = useStore();
-  void _joinVoice;
   const me = users[currentUserId];
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
     text: true,
@@ -255,14 +253,9 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                         className={`sysnav__row${
                           joined ? " sysnav__row--voice" : ""
                         }`}
-                        onClick={() => {
-                          if (joined) {
-                            leaveVoice();
-                            return;
-                          }
-                          // Phase 1: voice ships in 0.4.0
-                          toast("Το voice έρχεται στο επόμενο update");
-                        }}
+                        onClick={() =>
+                          joined ? leaveVoice() : joinVoice(channel.id)
+                        }
                       >
                         {joined ? (
                           <Volume2
@@ -273,7 +266,15 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                           <Radio size={15} className="sysnav__glyph" />
                         )}
                         <span className="sysnav__name">{channel.name}</span>
-                        <span className="sysnav__count">Σύντομα</span>
+                        <span
+                          className={`sysnav__count${
+                            participants.length ? " sysnav__count--live" : ""
+                          }`}
+                        >
+                          {participants.length > 0
+                            ? `${participants.length} live`
+                            : "άδειο"}
+                        </span>
                       </button>
                       {participants.length > 0 ? (
                         <ul className="sysnav__voice-users">

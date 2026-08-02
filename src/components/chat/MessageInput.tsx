@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Send, Smile, X, Loader2 } from "lucide-react";
 import type { Message } from "../../data/mock";
 import { useStore } from "../../store/store";
@@ -17,13 +17,29 @@ export function MessageInput({
   replyTo,
   onCancelReply,
 }: MessageInputProps) {
-  const { sendMessage, users, toast, onlineMode } = useStore();
+  const { sendMessage, users, toast, onlineMode, sendTyping } = useStore();
   const [value, setValue] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const typingDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const bumpTyping = () => {
+    if (!onlineMode) return;
+    if (typingDebounce.current) return;
+    sendTyping();
+    typingDebounce.current = setTimeout(() => {
+      typingDebounce.current = null;
+    }, 1800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingDebounce.current) clearTimeout(typingDebounce.current);
+    };
+  }, []);
 
   const attach = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -130,7 +146,10 @@ export function MessageInput({
           value={value}
           rows={1}
           disabled={uploading}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (e.target.value.trim()) bumpTyping();
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
