@@ -1,5 +1,6 @@
-# Serve an Aegis installer / portable zip over LAN.
-# Example: .\scripts\serve-installer.ps1 -Path .\Aegis_0.2.5_windows_x64.zip
+# Serve an Aegis installer / portable zip over LAN (ad-hoc; prefer VM :8080 for the group).
+# Permanent hosting: publish to the VM with .\scripts\publish-downloads-to-vm.ps1
+# Example: .\scripts\serve-installer.ps1 -Path .\Aegis_0.2.6_windows_x64.zip
 param(
   [Parameter(Mandatory = $true)]
   [string]$Path,

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis — λήψεις (LAN)</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --fg: #e8eef4;
+      --muted: #9aa8b5;
+      --accent: #3d9cf0;
+      --card: #1a222c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #1a3048 0%, var(--bg) 55%);
+      color: var(--fg);
+      line-height: 1.55;
+      padding: 2.5rem 1.25rem 3rem;
+    }
+    main { max-width: 40rem; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
+    .lead { color: var(--muted); margin: 0 0 1.5rem; }
+    .box {
+      background: var(--card);
+      border: 1px solid #2a3644;
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      margin: 0 0 1.25rem;
+    }
+    a { color: var(--accent); }
+    ol { padding-left: 1.25rem; margin: 0.5rem 0 0; }
+    li { margin: 0.4rem 0; }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.9em;
+      background: #0c1015;
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    .warn { color: #f0c14d; }
+    .ok { color: #7dcea0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aegis — λήψεις LAN</h1>
+    <p class="lead">Εγκατάσταση από το τοπικό δίκτυο (χωρίς GitHub / cloud block).</p>
+
+    <div class="box">
+      <strong class="ok">Προτεινόμενο: Setup (.exe) από εδώ</strong>
+      <ol>
+        <li>Κατέβασε <a href="/Aegis_latest_x64-setup.exe"><code>Aegis_latest_x64-setup.exe</code></a></li>
+        <li>Τρέξε το (per-user, χωρίς UAC).</li>
+        <li>Server URL: <code>http://192.168.1.235:3001</code></li>
+      </ol>
+      <p>Το ίδιο αρχείο από GitHub συχνά παίρνει ψευδή «virus detected» — <strong>μόνο από αυτό το LAN URL</strong>.</p>
+    </div>
+
+    <div class="box">
+      <strong>Εναλλακτικά: portable ZIP</strong>
+      <ol>
+        <li><a href="/Aegis_latest_windows_x64.zip"><code>Aegis_latest_windows_x64.zip</code></a> → unzip → <code>Aegis.exe</code></li>
+        <li>Αν μπλοκάρει: <code>Unblock-File .\Aegis.exe</code></li>
+      </ol>
+      <p class="warn">Το ZIP μπορεί να χτυπήσει τοπικό Defender ML ακόμα και από LAN· προτίμησε το Setup παραπάνω.</p>
+    </div>
+
+    <p>Όλα τα αρχεία: <a href="/">λίστα φακέλου</a> · Updates: <code>/latest.json</code></p>
+  </main>
+</body>
+</html>

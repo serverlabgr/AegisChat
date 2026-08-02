@@ -32,6 +32,18 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Optional Authenticode (Azure Trusted Signing) — enable when secrets exist.
+      # Without this, GitHub .exe downloads often trip cloud ML (Wacatac) on small Tauri NSIS.
+      # Required secrets (example): AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+      #   AZURE_CODE_SIGNING_ACCOUNT_NAME, AZURE_CERT_PROFILE_NAME, AZURE_ENDPOINT
+      # Docs: https://learn.microsoft.com/en-us/azure/trusted-signing/
+      # Do NOT add unsigned fake PFX. Leave this commented until credentials are ready.
+      #
+      # - name: Azure Trusted Signing (optional)
+      #   if: ${{ secrets.AZURE_TENANT_ID != '' }}
+      #   uses: azure/trusted-signing-action@v0
+      #   with: ...
+
       - name: Build and publish
         uses: tauri-apps/tauri-action@v1
         env:
@@ -44,28 +56,29 @@ jobs:
           tagName: v__VERSION__
           releaseName: "Aegis v__VERSION__"
           releaseBody: |
-            ## Εγκατάσταση (Windows)
+            ## Εγκατάσταση (Windows) — LAN πρώτα
 
-            ### Προτεινόμενο αν Defender μπλοκάρει το Setup
-            Κατέβασε το **`Aegis_*_windows_x64.zip`**, κάνε unzip και τρέξε `aegis.exe`
-            (απαιτείται WebView2 — υπάρχει ήδη στα περισσότερα Windows 10/11).
+            **Μην κατεβάζεις το Setup από GitHub** αν ο browser δείχνει virus (Wacatac ML false positive).
 
-            ### NSIS installer
-            Κατέβασε το **`Aegis_*_x64-setup.exe`** (per-user, χωρίς UAC).
+            ### Προτεινόμενο (παρέα στο ίδιο LAN)
+            Άνοιξε **http://192.168.1.235:8080/** και κατέβασε:
+            - **`Aegis_latest_x64-setup.exe`** (προτεινόμενο — τοπικό Defender καθαρό)
+            - ή `Aegis_latest_windows_x64.zip` → unzip → `Aegis.exe`
 
-            - Desktop shortcut / Start Menu
-            - Μετά το άνοιγμα βάλε **Server URL** = `https://YOUR_DOMAIN` (Ρυθμίσεις → Desktop),
-              εκτός αν το build έχει ήδη `VITE_API_URL`.
+            Server URL: `http://192.168.1.235:3001`
+
+            Οδηγίες: `INSTALL-WINDOWS.md`
+
+            ### Portable zip (αυτό το Release)
+            `Aegis_*_windows_x64.zip` — secondary· προτίμησε LAN αν υπάρχει block.
 
             ## Updates
-            Ρυθμίσεις → Updates, ή αποδέξου το prompt — κατεβάζει το Setup και ανοίγει τον installer
-            (ίδια λογική με ToolBox). Τα updates έρχονται από αυτό το GitHub Release (`latest.json`).
+            Από LAN: `http://192.168.1.235:8080/latest.json` (setup στο ίδιο host).
+            Μετά από κάθε release: `.\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub`
 
-            ## Server
-            Το API/DB τρέχει στο VM σου — δες `DEPLOY.md` στο repo.
-
-            ## LAN fallback
-            Αν το GitHub download μπλοκάρεται: `scripts/serve-installer.ps1 -Path .\Aegis_*_windows_x64.zip`
+            ## Signing
+            Χωρίς Authenticode / Azure Trusted Signing, internet GitHub .exe downloads
+            θα συνεχίσουν να false-positive. Το LAN είναι η σωστή διανομή για την παρέα.
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
@@ -92,3 +105,14 @@ jobs:
           Write-Host "Portable zip: $zipPath ($([math]::Round((Get-Item $zipPath).Length/1MB, 2)) MB)"
           gh release upload $tag $zipPath --clobber
           Write-Host "Uploaded $zipName to $tag"
+
+      # Keep NSIS on the release long enough for publish-downloads-to-vm.ps1 to fetch it.
+      # After LAN publish, run: .\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub
+      # (strips setup + GitHub latest.json so friends are not steered to cloud-flagged assets)
+      - name: Reminder — publish to LAN VM
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Write-Host "CI done. From admin PC run:"
+          Write-Host "  .\scripts\publish-downloads-to-vm.ps1 -Tag v$ver -RemoveNsisFromGitHub"
+          Write-Host "Friends install from http://192.168.1.235:8080/"

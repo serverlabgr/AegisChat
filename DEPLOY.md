@@ -13,10 +13,12 @@ cd /opt/aegis-chat/deploy
 # .env: POSTGRES_PASSWORD, JWT_SECRET, MAX_UPLOAD_BYTES=2147483648
 docker compose -f docker-compose.lan.yml up -d --build
 curl http://127.0.0.1:3001/health
+curl -I http://127.0.0.1:8080/
 ```
 
 - API: `http://192.168.1.235:3001`
-- Repo app updates: https://github.com/serverlabgr/AegisChat
+- **Downloads (πρωτεύον install path):** `http://192.168.1.235:8080/`
+- App updates: LAN `latest.json` (όχι GitHub) — δες `INSTALL-WINDOWS.md`
 - Backup: `./backup.sh` (SQL + encrypted uploads) — cron ήδη ή:
 
 ```bash
@@ -28,9 +30,21 @@ crontab -e
 
 ```powershell
 scp -r server\* craccchat@192.168.1.235:/opt/aegis-chat/server/
-scp deploy\docker-compose.lan.yml deploy\backup.sh deploy\update.sh craccchat@192.168.1.235:/opt/aegis-chat/deploy/
+scp deploy\docker-compose.lan.yml deploy\backup.sh deploy\update.sh deploy\downloads.nginx.conf craccchat@192.168.1.235:/opt/aegis-chat/deploy/
+scp -r downloads\* craccchat@192.168.1.235:/opt/aegis-chat/downloads/
 ssh craccchat@192.168.1.235 "bash /opt/aegis-chat/deploy/update.sh"
 ```
+
+Μετά από κάθε Windows release:
+
+```powershell
+.\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub
+```
+
+### Γιατί όχι GitHub .exe για την παρέα
+
+Μικρό Tauri NSIS (~4 MB) συχνά παίρνει cloud ML false positive (`Wacatac`). Το Electron ToolBox (~250 MB) έχει καλύτερη φήμη.
+**Μόνιμη internet λύση:** Azure Trusted Signing / Authenticode (σχόλια στο `release.yml`). Μέχρι τότε: μόνο LAN `:8080`.
 
 ---
 

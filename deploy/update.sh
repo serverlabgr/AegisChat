@@ -27,4 +27,6 @@ echo "==> health"
 sleep 3
 curl -fsS "http://127.0.0.1:3001/health" || true
 echo
-echo "Done. Windows clients update from GitHub Releases separately."
+curl -fsSI "http://127.0.0.1:8080/" || true
+echo
+echo "Done. Windows clients: install/update from http://192.168.1.235:8080/ (publish-downloads-to-vm.ps1)."
