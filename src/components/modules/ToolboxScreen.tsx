@@ -14,7 +14,6 @@ import {
 import { useStore } from "../../store/store";
 import { usePersisted } from "../../lib/persist";
 import { copyText } from "../../lib/clipboard";
-import { SoonBanner } from "./SoonBanner";
 import "./module.css";
 import "./ToolboxScreen.css";
 
@@ -64,7 +63,6 @@ export function ToolboxScreen() {
       </header>
 
       <div className="module__body">
-        <SoonBanner feature="Toolbox" />
         <div className="grid grid--tools">
           {/* Dice */}
           <div className="card tool">

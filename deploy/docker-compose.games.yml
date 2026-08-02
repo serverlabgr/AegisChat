@@ -1,0 +1,25 @@
+# Optional game containers (sessions-only is enough for Aegis UI).
+# Example Minecraft — run on the LAN VM when you want a real server:
+#
+#   cd /opt/aegis-chat/deploy
+#   docker compose -f docker-compose.games.yml up -d
+#
+# Mark the matching game_session online from the Aegis Game Hosting UI.
+
+services:
+  minecraft:
+    image: itzg/minecraft-server:latest
+    container_name: aegis-minecraft
+    restart: unless-stopped
+    ports:
+      - "25565:25565"
+    environment:
+      EULA: "TRUE"
+      MEMORY: "2G"
+      TYPE: "PAPER"
+      MOTD: "Aegis παρέα"
+    volumes:
+      - minecraft-data:/data
+
+volumes:
+  minecraft-data:

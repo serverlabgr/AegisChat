@@ -28,10 +28,10 @@ const MODULES: {
   { id: "chat", label: "Παρέα", icon: MessageSquare },
   { id: "personal", label: "Personal", icon: MessagesSquare },
   { id: "friends", label: "Φίλοι", icon: Users },
-  { id: "radio", label: "Radio", icon: Radio, soon: true },
-  { id: "games", label: "Game Hosting", icon: Server, soon: true },
-  { id: "devportal", label: "Dev Portal", icon: Code2, soon: true },
-  { id: "toolbox", label: "Toolbox", icon: Wrench, soon: true },
+  { id: "radio", label: "Radio", icon: Radio },
+  { id: "games", label: "Game Hosting", icon: Server },
+  { id: "devportal", label: "Dev Portal", icon: Code2 },
+  { id: "toolbox", label: "Toolbox", icon: Wrench },
 ];
 
 export function LauncherRail({ onOpenSettings, onOpenProfile }: LauncherRailProps) {
