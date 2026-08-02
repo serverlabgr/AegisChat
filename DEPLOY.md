@@ -35,6 +35,11 @@ scp -r downloads\* craccchat@192.168.1.235:/opt/aegis-chat/downloads/
 ssh craccchat@192.168.1.235 "bash /opt/aegis-chat/deploy/update.sh"
 ```
 
+### Remote access (Headscale)
+
+Δες `deploy/headscale.README.md`. Μέχρι να στηθεί Headscale, η παρέα μένει στο LAN
+`http://192.168.1.235:3001`. Μετά το Headscale, το Server URL γίνεται το 100.x IP του VM.
+
 Μετά από κάθε Windows release:
 
 ```powershell

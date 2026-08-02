@@ -320,27 +320,27 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
               <div className="settings__vpn">
                 <h4>
-                  <Network size={15} /> Ιδιωτικό δίκτυο (συνιστάται)
+                  <Network size={15} /> Ιδιωτικό δίκτυο (Headscale / Tailscale)
                 </h4>
                 <p>
-                  Η καλύτερη «VPN» πρακτική για παρέα: μην ανοίγεις το API στο δημόσιο
-                  internet. Βάλε τον server πίσω από{" "}
-                  <strong>Tailscale</strong> ή <strong>WireGuard</strong> και βάλε στο
-                  Server URL το Tailscale IP (π.χ.{" "}
+                  Για πρόσβαση εκτός LAN: βάλε{" "}
+                  <strong>Headscale</strong> στο VM (δες{" "}
+                  <code>deploy/headscale.README.md</code>) ή Tailscale cloud, και
+                  βάλε στο Server URL το ιδιωτικό IP (π.χ.{" "}
                   <code>http://100.x.x.x:3001</code>).
                 </p>
                 <ol>
-                  <li>Εγκατάσταση Tailscale στο PC του server και στα PCs των φίλων</li>
-                  <li>Ίδιο Tailnet · χωρίς ανοιχτό port στο router</li>
-                  <li>Aegis Server URL → Tailscale IP / MagicDNS</li>
-                  <li>Κρυπτογράφηση chat + ιδιωτικό δίκτυο = διπλή προστασία</li>
+                  <li>Εγκατάσταση Headscale στο VM ή Tailscale στο PC του server</li>
+                  <li>Ίδιο tailnet σε όλα τα PCs της παρέας</li>
+                  <li>Aegis Server URL → Headscale/Tailscale IP</li>
+                  <li>Μην ανοίγεις το :3001 στο δημόσιο internet</li>
                 </ol>
                 <a
-                  href="https://tailscale.com/download"
+                  href="https://headscale.net/"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Κατέβασμα Tailscale →
+                  Headscale docs →
                 </a>
               </div>
             </div>

@@ -21,18 +21,17 @@
 
 Μετά το πρώτο login κράτα το **Recovery Key** (Settings → Ασφάλεια). Χωρίς αυτό δεν ξανανοίγει το vault αν αλλάξεις PC.
 
-## Τι δουλεύει τώρα (0.3.x)
+## Τι δουλεύει τώρα
 
-- Κανάλια + DM, edit/delete, reactions, typing, notifications
-- Κρυπτογραφημένα μηνύματα / media
-- LAN updater
+- Chat (κανάλια + DM, edit/delete, reactions, typing, notifications, read receipts)
+- Voice mesh στα voice channels
+- Radio (συγχρονισμένα streams)
+- Game sessions + Dev Portal tokens/webhooks + Toolbox
+- LAN updater: http://192.168.1.235:8080/
 
-## Σύντομα
+## Remote (εκτός Wi‑Fi)
 
-- Voice channels
-- Radio μαζί
-- Game hosting sessions
-- Dev portal / webhooks
+Όταν στηθεί Headscale στο VM — δες `DEPLOY.md` / Settings → Ασφάλεια. Μέχρι τότε μόνο LAN.
 
 ## Admin
 
