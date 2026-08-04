@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth, type AuthVars } from "../auth.js";
+import { canManageChannels } from "../channelAuth.js";
 import { query } from "../db.js";
 import { broadcast } from "../ws.js";
 
@@ -160,7 +161,7 @@ channelRoutes.post("/:id/messages", async (c) => {
 channelRoutes.patch("/messages/:messageId", async (c) => {
   const messageId = c.req.param("messageId");
   const body = z
-    .object({ content: z.string().trim().min(1).max(4000) })
+    .object({ content: z.string().trim().min(1).max(12000) })
     .safeParse(await c.req.json());
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
 
@@ -237,4 +238,98 @@ channelRoutes.post("/messages/:messageId/reactions", async (c) => {
     added,
   });
   return c.json({ ok: true, added });
+});
+
+channelRoutes.patch("/:id", async (c) => {
+  const id = c.req.param("id");
+  if (id === "messages") return c.json({ error: "Not found" }, 404);
+  const body = z
+    .object({
+      name: z.string().trim().min(1).max(48).optional(),
+      topic: z.string().max(280).optional(),
+      position: z.number().int().min(0).max(10_000).optional(),
+    })
+    .safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: "Invalid payload" }, 400);
+  if (
+    body.data.name === undefined &&
+    body.data.topic === undefined &&
+    body.data.position === undefined
+  ) {
+    return c.json({ error: "Nothing to update" }, 400);
+  }
+
+  const cur = await query(
+    `SELECT id, name, type, topic, position, group_id AS "groupId"
+     FROM channels WHERE id = $1`,
+    [id],
+  );
+  if (!cur.rows[0]) return c.json({ error: "Channel not found" }, 404);
+  const groupId = (cur.rows[0].groupId as string | null) ?? null;
+  if (!(await canManageChannels(c.get("userId"), groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const next = {
+    name: body.data.name ?? (cur.rows[0].name as string),
+    topic:
+      body.data.topic !== undefined
+        ? body.data.topic
+        : (cur.rows[0].topic as string),
+    position:
+      body.data.position !== undefined
+        ? body.data.position
+        : (cur.rows[0].position as number),
+  };
+  const { rows } = await query(
+    `UPDATE channels SET name = $1, topic = $2, position = $3
+     WHERE id = $4
+     RETURNING id, name, type, topic, position, group_id AS "groupId"`,
+    [next.name, next.topic, next.position, id],
+  );
+  const channel = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type,
+    topic: rows[0].topic || undefined,
+    position: rows[0].position,
+    groupId: rows[0].groupId ?? null,
+  };
+  broadcast({ type: "channels_changed", groupId });
+  return c.json({ channel });
+});
+
+channelRoutes.delete("/:id", async (c) => {
+  const id = c.req.param("id");
+  if (id === "messages") return c.json({ error: "Not found" }, 404);
+
+  const cur = await query(
+    `SELECT id, type, group_id AS "groupId" FROM channels WHERE id = $1`,
+    [id],
+  );
+  if (!cur.rows[0]) return c.json({ error: "Channel not found" }, 404);
+  const groupId = (cur.rows[0].groupId as string | null) ?? null;
+  if (!(await canManageChannels(c.get("userId"), groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  if (cur.rows[0].type === "text") {
+    const count = await query(
+      `SELECT COUNT(*)::int AS n FROM channels
+       WHERE type = 'text' AND (
+         ($1::uuid IS NULL AND group_id IS NULL) OR group_id = $1
+       )`,
+      [groupId],
+    );
+    if ((count.rows[0]?.n as number) <= 1) {
+      return c.json(
+        { error: "Δεν μπορείς να διαγράψεις το τελευταίο text κανάλι" },
+        400,
+      );
+    }
+  }
+
+  await query(`DELETE FROM channels WHERE id = $1`, [id]);
+  broadcast({ type: "channels_changed", groupId });
+  return c.json({ ok: true, id, groupId });
 });

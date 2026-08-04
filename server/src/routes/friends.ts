@@ -7,6 +7,12 @@ import {
   requireAuth,
   type AuthVars,
 } from "../auth.js";
+import {
+  canManageChannels,
+  isGroupMember,
+  resolveGroupId,
+  uniqueChannelId,
+} from "../channelAuth.js";
 import { query } from "../db.js";
 import { broadcast, sendToUser } from "../ws.js";
 
@@ -291,6 +297,103 @@ friendRoutes.post("/groups", async (c) => {
     },
     201,
   );
+});
+
+friendRoutes.patch("/groups/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = z
+    .object({
+      name: z.string().trim().min(1).max(48).optional(),
+      color: z.string().trim().min(4).max(16).optional(),
+    })
+    .safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: "Invalid payload" }, 400);
+  if (body.data.name === undefined && body.data.color === undefined) {
+    return c.json({ error: "Nothing to update" }, 400);
+  }
+
+  const groupId = resolveGroupId(id);
+  if (groupId == null) {
+    return c.json({ error: "Το home server δεν μετονομάζεται εδώ" }, 400);
+  }
+  if (!(await canManageChannels(c.get("userId"), groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const cur = await query(
+    `SELECT id, name, tag, activity, color FROM groups WHERE id = $1`,
+    [groupId],
+  );
+  if (!cur.rows[0]) return c.json({ error: "Not found" }, 404);
+
+  const next = {
+    name: body.data.name ?? (cur.rows[0].name as string),
+    color: body.data.color ?? (cur.rows[0].color as string),
+  };
+  const { rows } = await query(
+    `UPDATE groups SET name = $1, color = $2 WHERE id = $3
+     RETURNING id, name, tag, activity, color`,
+    [next.name, next.color, groupId],
+  );
+  broadcast({ type: "channels_changed", groupId });
+  return c.json({
+    group: {
+      id: rows[0].id,
+      name: rows[0].name,
+      tag: rows[0].tag,
+      activity: rows[0].activity,
+      color: rows[0].color,
+    },
+  });
+});
+
+friendRoutes.post("/groups/:groupId/channels", async (c) => {
+  const rawGroupId = c.req.param("groupId");
+  const groupId = resolveGroupId(rawGroupId);
+  const body = z
+    .object({
+      name: z.string().trim().min(1).max(48),
+      type: z.enum(["text", "voice"]),
+      topic: z.string().max(280).optional(),
+    })
+    .safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: "Invalid payload" }, 400);
+
+  const me = c.get("userId");
+  if (groupId != null && !(await isGroupMember(me, groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  if (!(await canManageChannels(me, groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const pos = await query(
+    `SELECT COALESCE(MAX(position), -1)::int AS m FROM channels
+     WHERE type = $1 AND (
+       ($2::uuid IS NULL AND group_id IS NULL) OR group_id = $2
+     )`,
+    [body.data.type, groupId],
+  );
+  const position = ((pos.rows[0]?.m as number) ?? -1) + 1;
+  const id = await uniqueChannelId(groupId, body.data.name);
+  const topic = body.data.topic ?? "";
+
+  const { rows } = await query(
+    `INSERT INTO channels (id, name, type, topic, position, group_id)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, name, type, topic, position, group_id AS "groupId"`,
+    [id, body.data.name, body.data.type, topic, position, groupId],
+  );
+  const channel = {
+    id: rows[0].id,
+    name: rows[0].name,
+    type: rows[0].type as "text" | "voice",
+    topic: rows[0].topic || undefined,
+    position: rows[0].position,
+    groupId: rows[0].groupId ?? null,
+  };
+  broadcast({ type: "channels_changed", groupId });
+  return c.json({ channel }, 201);
 });
 
 friendRoutes.get("/users", async (c) => {

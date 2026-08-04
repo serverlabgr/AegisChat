@@ -196,7 +196,7 @@ dmRoutes.patch("/messages/:messageId", async (c) => {
   const messageId = c.req.param("messageId");
   const me = c.get("userId");
   const body = z
-    .object({ content: z.string().trim().min(1).max(4000) })
+    .object({ content: z.string().trim().min(1).max(12000) })
     .safeParse(await c.req.json());
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
 

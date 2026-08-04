@@ -18,7 +18,7 @@
 Αν ο browser μπλοκάρει το GitHub `.exe` (false positive Defender), χρησιμοποίησε το LAN παραπάνω.
 Αλλιώς μπορείς και από: https://github.com/serverlabgr/AegisChat/releases
 
-> **Σημείωση:** το **0.7.3** δεν άνοιγε (panic από HTTP LAN updater endpoint). Εγκατάστησε **0.7.4+**.
+> **Σημείωση:** το **0.7.3** δεν άνοιγε (panic από HTTP LAN updater endpoint). Εγκατάστησε **0.7.4+** / **0.8.0**.
 
 ## Updates
 

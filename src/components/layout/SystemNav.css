@@ -186,7 +186,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 6px 8px;
   border: none;
   border-radius: var(--radius-sm);
@@ -199,6 +200,48 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sysnav__section-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sysnav__section-add,
+.sysnav__server-gear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.sysnav__section-row:hover .sysnav__section-add,
+.sysnav__server:hover .sysnav__server-gear,
+.sysnav__section-add:focus-visible,
+.sysnav__server-gear:focus-visible {
+  opacity: 1;
+}
+
+.sysnav__section-add:hover,
+.sysnav__server-gear:hover {
+  color: var(--text-hi);
+  background: var(--bg-hover);
+}
+
+.sysnav__server-gear {
+  margin-left: auto;
+  margin-right: 4px;
 }
 
 .sysnav__section-btn:hover {

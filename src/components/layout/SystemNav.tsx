@@ -17,6 +17,10 @@ import { HOME_SERVER_ID, PERSONAL_SPACE_ID } from "../../data/modules";
 import { useStore } from "../../store/store";
 import { Avatar } from "../common/Avatar";
 import { PersonalNav } from "./PersonalNav";
+import {
+  ChannelManageModals,
+  type ChannelModalMode,
+} from "../modals/ChannelManageModals";
 import "./SystemNav.css";
 
 interface SystemNavProps {
@@ -59,6 +63,9 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
     voice: true,
     dms: true,
   });
+  const [channelModal, setChannelModal] = useState<ChannelModalMode | null>(
+    null,
+  );
 
   const activeGroup = useMemo(() => {
     if (activeGroupId === HOME_SERVER_ID) {
@@ -179,23 +186,45 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
               {onlineCount} online · encrypted
             </span>
           </div>
+          <button
+            type="button"
+            className="sysnav__server-gear"
+            title="Ρυθμίσεις server"
+            aria-label="Ρυθμίσεις server"
+            onClick={() => setChannelModal({ kind: "group" })}
+          >
+            <Settings size={15} />
+          </button>
         </header>
 
         <div className="sysnav__scroll">
           <section className="sysnav__group">
-            <button
-              type="button"
-              className="sysnav__section-btn"
-              onClick={() => toggle("text")}
-              aria-expanded={open.text}
-            >
-              <ChevronDown
-                size={14}
-                className={`sysnav__chev${open.text ? "" : " sysnav__chev--closed"}`}
-              />
-              <span>Κανάλια</span>
-              <em>{textList.length}</em>
-            </button>
+            <div className="sysnav__section-row">
+              <button
+                type="button"
+                className="sysnav__section-btn"
+                onClick={() => toggle("text")}
+                aria-expanded={open.text}
+              >
+                <ChevronDown
+                  size={14}
+                  className={`sysnav__chev${open.text ? "" : " sysnav__chev--closed"}`}
+                />
+                <span>Κανάλια</span>
+                <em>{textList.length}</em>
+              </button>
+              <button
+                type="button"
+                className="sysnav__section-add"
+                title="Νέο κανάλι κειμένου"
+                aria-label="Νέο κανάλι κειμένου"
+                onClick={() =>
+                  setChannelModal({ kind: "create", type: "text" })
+                }
+              >
+                <Plus size={14} />
+              </button>
+            </div>
             {open.text ? (
               <ul className="sysnav__list">
                 {textList.map((channel) => {
@@ -213,6 +242,10 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                         onClick={() =>
                           setActiveView({ type: "channel", id: channel.id })
                         }
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setChannelModal({ kind: "edit", channel });
+                        }}
                       >
                         <Hash size={15} className="sysnav__glyph" />
                         <span className="sysnav__name">{channel.name}</span>
@@ -228,19 +261,32 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
           </section>
 
           <section className="sysnav__group">
-            <button
-              type="button"
-              className="sysnav__section-btn"
-              onClick={() => toggle("voice")}
-              aria-expanded={open.voice}
-            >
-              <ChevronDown
-                size={14}
-                className={`sysnav__chev${open.voice ? "" : " sysnav__chev--closed"}`}
-              />
-              <span>Φωνή</span>
-              <em>{voiceList.length}</em>
-            </button>
+            <div className="sysnav__section-row">
+              <button
+                type="button"
+                className="sysnav__section-btn"
+                onClick={() => toggle("voice")}
+                aria-expanded={open.voice}
+              >
+                <ChevronDown
+                  size={14}
+                  className={`sysnav__chev${open.voice ? "" : " sysnav__chev--closed"}`}
+                />
+                <span>Φωνή</span>
+                <em>{voiceList.length}</em>
+              </button>
+              <button
+                type="button"
+                className="sysnav__section-add"
+                title="Νέο φωνητικό κανάλι"
+                aria-label="Νέο φωνητικό κανάλι"
+                onClick={() =>
+                  setChannelModal({ kind: "create", type: "voice" })
+                }
+              >
+                <Plus size={14} />
+              </button>
+            </div>
             {open.voice ? (
               <ul className="sysnav__list">
                 {voiceList.map((channel) => {
@@ -256,6 +302,10 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                         onClick={() =>
                           joined ? leaveVoice() : joinVoice(channel.id)
                         }
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setChannelModal({ kind: "edit", channel });
+                        }}
                       >
                         {joined ? (
                           <Volume2
@@ -413,6 +463,21 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
         </footer>
       </div>
       )}
+
+      {channelModal ? (
+        <ChannelManageModals
+          key={`${channelModal.kind}-${
+            channelModal.kind === "create"
+              ? channelModal.type
+              : channelModal.kind === "group"
+                ? "group"
+                : channelModal.channel.id
+          }`}
+          mode={channelModal}
+          onClose={() => setChannelModal(null)}
+          onSwitch={setChannelModal}
+        />
+      ) : null}
     </aside>
   );
 }

@@ -48,7 +48,7 @@ import {
   encryptText,
   isEncryptedPayload,
 } from "../lib/messageCrypto";
-import { encodeMessageBody } from "../lib/messageBody";
+import { decodeMessageBody, encodeMessageBody } from "../lib/messageBody";
 import type { MediaMeta } from "../lib/media";
 import {
   handleRtcSignal,
@@ -152,6 +152,21 @@ interface StoreValue {
   declineRequest: (requestId: string) => void;
   createInvite: () => void;
   createGroup: (name: string) => void;
+  createChannel: (
+    name: string,
+    type: "text" | "voice",
+    topic?: string,
+  ) => Promise<boolean>;
+  updateChannel: (
+    channelId: string,
+    patch: { name?: string; topic?: string; position?: number },
+  ) => Promise<boolean>;
+  deleteChannel: (channelId: string) => Promise<boolean>;
+  updateGroup: (
+    groupId: string,
+    patch: { name?: string; color?: string },
+  ) => Promise<boolean>;
+  refreshChannels: () => Promise<void>;
   inviteToGame: (userId: string) => void;
   hydrateFromServer: (payload: BootstrapPayload) => void;
   connectRealtime: () => void;
@@ -700,15 +715,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         activeView.type === "channel"
           ? messagesByChannel[activeView.id]
           : dmMessages[activeView.id];
+      const existing = prevSnapshot?.find((m) => m.id === messageId);
+      const prior = existing
+        ? decodeMessageBody(existing.content)
+        : { text: trimmed };
+      // Preserve attached files when editing text (critical)
+      const plainBody = encodeMessageBody({
+        text: trimmed,
+        files: prior.files,
+      });
       mutateActiveMessages((list) =>
         list.map((m) =>
-          m.id === messageId ? { ...m, content: trimmed, edited: true } : m,
+          m.id === messageId ? { ...m, content: plainBody, edited: true } : m,
         ),
       );
       if (!onlineRef.current) return;
       void (async () => {
         try {
-          const payload = await encryptText(trimmed);
+          const payload = await encryptText(plainBody);
           const path =
             activeView.type === "dm"
               ? `/dms/messages/${messageId}`
@@ -1170,6 +1194,208 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [setGroups, toast, setActiveGroup],
   );
 
+  const refreshChannels = useCallback(async () => {
+    if (!onlineRef.current) return;
+    try {
+      const [channelsRes, groupsRes] = await Promise.all([
+        api<{
+          channels: {
+            id: string;
+            name: string;
+            type: string;
+            topic?: string;
+            groupId?: string | null;
+          }[];
+        }>("/channels"),
+        api<{ groups: Group[] }>("/friends/groups"),
+      ]);
+      const home = channelsRes.channels
+        .filter((c) => !c.groupId)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type as "text" | "voice",
+          topic: c.topic,
+        }));
+      setHomeChannels(home);
+      setGroups(
+        groupsRes.groups.map((g) => ({
+          ...g,
+          channels:
+            g.channels?.length ? g.channels : makeGroupChannels(g.id, g.name),
+        })),
+      );
+    } catch {
+      /* quiet — transient */
+    }
+  }, [setGroups]);
+
+  const createChannel = useCallback(
+    async (name: string, type: "text" | "voice", topic?: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return false;
+      if (!onlineRef.current) {
+        toast("Χρειάζεται σύνδεση για διαχείριση καναλιών");
+        return false;
+      }
+      const groupKey =
+        activeGroupId === HOME_SERVER_ID ? HOME_SERVER_ID : activeGroupId;
+      try {
+        const { channel } = await api<{ channel: Channel }>(
+          `/friends/groups/${encodeURIComponent(groupKey)}/channels`,
+          {
+            method: "POST",
+            body: { name: trimmed, type, topic: topic?.trim() || undefined },
+          },
+        );
+        if (activeGroupId === HOME_SERVER_ID) {
+          setHomeChannels((prev) =>
+            prev.some((c) => c.id === channel.id) ? prev : [...prev, channel],
+          );
+        } else {
+          setGroups((prev) =>
+            prev.map((g) =>
+              g.id === activeGroupId
+                ? {
+                    ...g,
+                    channels: [...(g.channels ?? []), channel],
+                  }
+                : g,
+            ),
+          );
+        }
+        if (type === "text") {
+          setActiveView({ type: "channel", id: channel.id });
+        }
+        toast(`Το κανάλι #${channel.name} δημιουργήθηκε`);
+        return true;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία δημιουργίας");
+        return false;
+      }
+    },
+    [activeGroupId, setGroups, setActiveView, toast],
+  );
+
+  const updateChannel = useCallback(
+    async (
+      channelId: string,
+      patch: { name?: string; topic?: string; position?: number },
+    ) => {
+      if (!onlineRef.current) {
+        toast("Χρειάζεται σύνδεση");
+        return false;
+      }
+      try {
+        const { channel } = await api<{ channel: Channel }>(
+          `/channels/${encodeURIComponent(channelId)}`,
+          { method: "PATCH", body: patch },
+        );
+        setHomeChannels((prev) =>
+          prev.map((c) => (c.id === channelId ? { ...c, ...channel } : c)),
+        );
+        setGroups((prev) =>
+          prev.map((g) => ({
+            ...g,
+            channels: (g.channels ?? []).map((c) =>
+              c.id === channelId ? { ...c, ...channel } : c,
+            ),
+          })),
+        );
+        toast("Το κανάλι ενημερώθηκε");
+        return true;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης");
+        return false;
+      }
+    },
+    [setGroups, toast],
+  );
+
+  const deleteChannel = useCallback(
+    async (channelId: string) => {
+      if (!onlineRef.current) {
+        toast("Χρειάζεται σύνδεση");
+        return false;
+      }
+      try {
+        await api(`/channels/${encodeURIComponent(channelId)}`, {
+          method: "DELETE",
+        });
+        setHomeChannels((prev) => prev.filter((c) => c.id !== channelId));
+        setGroups((prev) =>
+          prev.map((g) => ({
+            ...g,
+            channels: (g.channels ?? []).filter((c) => c.id !== channelId),
+          })),
+        );
+        if (
+          activeViewRef.current.type === "channel" &&
+          activeViewRef.current.id === channelId
+        ) {
+          const fallback =
+            activeGroupId === HOME_SERVER_ID
+              ? homeChannels.find((c) => c.type === "text" && c.id !== channelId)
+              : groups
+                  .find((g) => g.id === activeGroupId)
+                  ?.channels?.find(
+                    (c) => c.type === "text" && c.id !== channelId,
+                  );
+          if (fallback) {
+            setActiveView({ type: "channel", id: fallback.id });
+          }
+        }
+        toast("Το κανάλι διαγράφηκε");
+        return true;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία διαγραφής");
+        return false;
+      }
+    },
+    [
+      setGroups,
+      toast,
+      activeGroupId,
+      homeChannels,
+      groups,
+      setActiveView,
+    ],
+  );
+
+  const updateGroup = useCallback(
+    async (groupId: string, patch: { name?: string; color?: string }) => {
+      if (groupId === HOME_SERVER_ID) {
+        toast("Το home server δεν μετονομάζεται");
+        return false;
+      }
+      if (!onlineRef.current) {
+        toast("Χρειάζεται σύνδεση");
+        return false;
+      }
+      try {
+        const { group } = await api<{
+          group: { id: string; name: string; color: string };
+        }>(`/friends/groups/${encodeURIComponent(groupId)}`, {
+          method: "PATCH",
+          body: patch,
+        });
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === groupId
+              ? { ...g, name: group.name, color: group.color }
+              : g,
+          ),
+        );
+        toast("Ο server ενημερώθηκε");
+        return true;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία");
+        return false;
+      }
+    },
+    [setGroups, toast],
+  );
+
   const inviteToGame = useCallback(
     (userId: string) => {
       const plain =
@@ -1413,6 +1639,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           new CustomEvent("aegis-game-session", { detail: { session, action } }),
         );
       },
+      onChannelsChanged: () => {
+        void refreshChannels();
+      },
       onPong: (rttMs) => {
         setUserPing(currentUserRef.current, rttMs);
       },
@@ -1450,6 +1679,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMessagesByChannel,
     setDmMessages,
     setReadCursors,
+    refreshChannels,
   ]);
 
   const value = useMemo<StoreValue>(
@@ -1497,6 +1727,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       declineRequest,
       createInvite,
       createGroup,
+      createChannel,
+      updateChannel,
+      deleteChannel,
+      updateGroup,
+      refreshChannels,
       inviteToGame,
       hydrateFromServer,
       connectRealtime,
@@ -1553,6 +1788,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       declineRequest,
       createInvite,
       createGroup,
+      createChannel,
+      updateChannel,
+      deleteChannel,
+      updateGroup,
+      refreshChannels,
       inviteToGame,
       hydrateFromServer,
       connectRealtime,

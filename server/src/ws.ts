@@ -75,6 +75,10 @@ export type OutEvent =
       type: "game_session";
       session: unknown;
       action: "created" | "updated" | "deleted";
+    }
+  | {
+      type: "channels_changed";
+      groupId: string | null;
     };
 
 export type RadioState = {

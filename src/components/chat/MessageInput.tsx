@@ -1,15 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Send, Smile, X, Loader2 } from "lucide-react";
+import { FileIcon, ImagePlus, Send, Smile, X, Loader2 } from "lucide-react";
 import type { Message } from "../../data/mock";
 import { useStore } from "../../store/store";
 import { EmojiPicker } from "../common/EmojiPicker";
-import { uploadEncryptedFile, MEDIA_MAX_BYTES, MEDIA_WARN_BYTES } from "../../lib/media";
+import {
+  uploadEncryptedFile,
+  MEDIA_MAX_BYTES,
+  MEDIA_WARN_BYTES,
+} from "../../lib/media";
 import "./MessageInput.css";
 
 interface MessageInputProps {
   placeholder: string;
   replyTo: Message | null;
   onCancelReply: () => void;
+}
+
+type StagedFile = {
+  id: string;
+  file: File;
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function MessageInput({
@@ -20,8 +35,11 @@ export function MessageInput({
   const { sendMessage, users, toast, onlineMode, sendTyping } = useStore();
   const [value, setValue] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
+  const [staged, setStaged] = useState<StagedFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [pendingNames, setPendingNames] = useState<string[]>([]);
+  const [uploadLabel, setUploadLabel] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const typingDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,13 +59,13 @@ export function MessageInput({
     };
   }, []);
 
-  const attach = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  const stageFiles = (files: FileList | File[] | null) => {
+    if (!files || (files as FileList).length === 0) return;
     if (!onlineMode) {
       toast("Για uploads χρειάζεται σύνδεση στο server");
       return;
     }
-    const list = Array.from(files);
+    const list = Array.from(files as FileList | File[]);
     const oversized = list.filter((f) => f.size > MEDIA_MAX_BYTES);
     if (oversized.length) {
       toast(
@@ -61,18 +79,55 @@ export function MessageInput({
         `Μεγάλα αρχεία — μπορεί να αργήσει: ${large.map((f) => f.name).join(", ")}`,
       );
     }
+    setStaged((prev) => [
+      ...prev,
+      ...list.map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+      })),
+    ]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const removeStaged = (id: string) => {
+    setStaged((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const submit = () => {
+    const text = value.trim();
+    if ((!text && staged.length === 0) || uploading) return;
+
+    if (staged.length === 0) {
+      sendMessage(text, replyTo?.id);
+      setValue("");
+      onCancelReply();
+      setShowEmoji(false);
+      return;
+    }
+
     setUploading(true);
-    setPendingNames(list.map((f) => f.name));
+    setProgress(0);
     void (async () => {
       try {
         const metas = [];
-        for (const file of list) {
-          // Original bytes only — no canvas resize / video re-encode
-          metas.push(await uploadEncryptedFile(file));
+        for (let i = 0; i < staged.length; i++) {
+          const { file } = staged[i];
+          setUploadLabel(file.name);
+          setProgress(0);
+          metas.push(
+            await uploadEncryptedFile(file, (pct) => {
+              // Overall progress across files
+              const base = (i / staged.length) * 100;
+              const slice = pct / staged.length;
+              setProgress(Math.round(base + slice));
+            }),
+          );
         }
-        sendMessage(value.trim(), replyTo?.id, metas);
+        sendMessage(text, replyTo?.id, metas);
         setValue("");
+        setStaged([]);
         onCancelReply();
+        setShowEmoji(false);
         toast(
           metas.length === 1
             ? `Στάλθηκε κρυπτογραφημένα: ${metas[0].name}`
@@ -82,22 +137,38 @@ export function MessageInput({
         toast(err instanceof Error ? err.message : "Αποτυχία upload");
       } finally {
         setUploading(false);
-        setPendingNames([]);
-        if (fileRef.current) fileRef.current.value = "";
+        setUploadLabel("");
+        setProgress(0);
       }
     })();
   };
 
-  const submit = () => {
-    if (!value.trim() || uploading) return;
-    sendMessage(value, replyTo?.id);
-    setValue("");
-    onCancelReply();
-    setShowEmoji(false);
-  };
+  const canSend = (value.trim().length > 0 || staged.length > 0) && !uploading;
 
   return (
-    <footer className="message-input">
+    <footer
+      className={`message-input${dragOver ? " message-input--drag" : ""}`}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(true);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(false);
+        stageFiles(e.dataTransfer.files);
+      }}
+    >
       {replyTo ? (
         <div className="message-input__reply">
           <span>
@@ -112,12 +183,49 @@ export function MessageInput({
         </div>
       ) : null}
 
+      {staged.length > 0 ? (
+        <div className="message-input__chips">
+          {staged.map((s) => (
+            <div key={s.id} className="message-input__chip">
+              {s.file.type.startsWith("image/") ? (
+                <ImagePlus size={12} />
+              ) : (
+                <FileIcon size={12} />
+              )}
+              <span className="message-input__chip-name" title={s.file.name}>
+                {s.file.name}
+              </span>
+              <em>{formatBytes(s.file.size)}</em>
+              <button
+                type="button"
+                aria-label="Αφαίρεση"
+                disabled={uploading}
+                onClick={() => removeStaged(s.id)}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {uploading ? (
         <div className="message-input__upload">
           <Loader2 size={14} className="message-input__spin" />
-          Κρυπτογράφηση & upload χωρίς συμπίεση…
-          <span>{pendingNames.join(", ")}</span>
+          Κρυπτογράφηση & upload…
+          <span>{uploadLabel}</span>
+          <div className="message-input__progress" aria-hidden>
+            <div
+              className="message-input__progress-bar"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <em>{progress}%</em>
         </div>
+      ) : null}
+
+      {dragOver ? (
+        <div className="message-input__drop-hint">Άφησε αρχεία εδώ</div>
       ) : null}
 
       <div className="message-input__bar">
@@ -127,13 +235,13 @@ export function MessageInput({
           multiple
           accept="*/*"
           hidden
-          onChange={(e) => attach(e.target.files)}
+          onChange={(e) => stageFiles(e.target.files)}
         />
         <button
           type="button"
           className="message-input__icon"
-          aria-label="Photo / video (original quality)"
-          title="Photo / Video — original, AES-256"
+          aria-label="Επισύναψη αρχείου"
+          title="Photo / αρχείο — original, AES-256"
           disabled={uploading}
           onClick={() => fileRef.current?.click()}
         >
@@ -149,6 +257,13 @@ export function MessageInput({
           onChange={(e) => {
             setValue(e.target.value);
             if (e.target.value.trim()) bumpTyping();
+          }}
+          onPaste={(e) => {
+            const items = e.clipboardData?.files;
+            if (items && items.length > 0) {
+              e.preventDefault();
+              stageFiles(items);
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -181,7 +296,7 @@ export function MessageInput({
           className="message-input__send"
           aria-label="Send message"
           onClick={submit}
-          disabled={!value.trim() || uploading}
+          disabled={!canSend}
         >
           <Send size={18} />
         </button>

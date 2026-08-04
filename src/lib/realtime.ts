@@ -44,6 +44,7 @@ export type RealtimeHandlers = {
     session: unknown,
     action: "created" | "updated" | "deleted",
   ) => void;
+  onChannelsChanged?: (groupId: string | null) => void;
   onPong?: (rttMs: number) => void;
   onHello?: (online: string[], radio?: RadioState) => void;
   onOpen?: () => void;
@@ -115,6 +116,7 @@ export class RealtimeClient {
         lastMessageId?: string | null;
         session?: unknown;
         action?: "created" | "updated" | "deleted";
+        groupId?: string | null;
       };
       try {
         msg = JSON.parse(String(ev.data));
@@ -163,6 +165,7 @@ export class RealtimeClient {
     lastMessageId?: string | null;
     session?: unknown;
     action?: "created" | "updated" | "deleted";
+    groupId?: string | null;
   }) {
     switch (msg.type) {
       case "hello":
@@ -290,6 +293,9 @@ export class RealtimeClient {
         if (msg.session && msg.action) {
           this.handlers.onGameSession?.(msg.session, msg.action);
         }
+        break;
+      case "channels_changed":
+        this.handlers.onChannelsChanged?.(msg.groupId ?? null);
         break;
       case "pong":
         if (typeof msg.clientTime === "number") {

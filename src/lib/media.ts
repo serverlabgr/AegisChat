@@ -26,7 +26,10 @@ async function authHeader(): Promise<string> {
 }
 
 /** Encrypt original file bytes (no resize/re-encode) and upload ciphertext. */
-export async function uploadEncryptedFile(file: File): Promise<MediaMeta> {
+export async function uploadEncryptedFile(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<MediaMeta> {
   if (file.size > MEDIA_MAX_BYTES) {
     throw new Error(
       `Το αρχείο ξεπερνά τα 2GB (${(file.size / 1024 / 1024).toFixed(0)}MB). Στείλε μικρότερο.`,
@@ -38,34 +41,69 @@ export async function uploadEncryptedFile(file: File): Promise<MediaMeta> {
   const { iv, ciphertext } = await encryptBytes(raw);
   const blob = packEncryptedBlob(iv, ciphertext);
 
-  const doUpload = async (authorization: string) =>
-    fetch(`${getApiBase()}/media`, {
-      method: "POST",
-      headers: {
-        Authorization: authorization,
-        "Content-Type": "application/octet-stream",
-        "Content-Length": String(blob.size),
-      },
-      body: blob,
+  const doUpload = (authorization: string) =>
+    new Promise<{ id: string; size: number }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${getApiBase()}/media`);
+      xhr.setRequestHeader("Authorization", authorization);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable || !onProgress) return;
+        onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+      };
+      xhr.onload = () => {
+        if (xhr.status === 401) {
+          reject(Object.assign(new Error("Unauthorized"), { status: 401 }));
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          let msg = `Upload failed (${xhr.status})`;
+          try {
+            const err = JSON.parse(xhr.responseText) as { error?: string };
+            if (err?.error) msg = err.error;
+          } catch {
+            /* ignore */
+          }
+          reject(new Error(msg));
+          return;
+        }
+        try {
+          const data = JSON.parse(xhr.responseText) as {
+            id: string;
+            size: number;
+          };
+          onProgress?.(100);
+          resolve(data);
+        } catch {
+          reject(new Error("Invalid upload response"));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error κατά το upload"));
+      xhr.send(blob);
     });
 
   let authorization = await authHeader();
-  let res = await doUpload(authorization);
-  if (res.status === 401) {
-    authorization = await authHeader();
-    res = await doUpload(authorization);
+  try {
+    const data = await doUpload(authorization);
+    return {
+      id: data.id,
+      name: file.name,
+      mime: file.type || "application/octet-stream",
+      size: file.size,
+    };
+  } catch (err) {
+    if (err instanceof Error && (err as { status?: number }).status === 401) {
+      authorization = await authHeader();
+      const data = await doUpload(authorization);
+      return {
+        id: data.id,
+        name: file.name,
+        mime: file.type || "application/octet-stream",
+        size: file.size,
+      };
+    }
+    throw err;
   }
-  if (!res.ok) {
-    const err = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(err?.error ?? `Upload failed (${res.status})`);
-  }
-  const data = (await res.json()) as { id: string; size: number };
-  return {
-    id: data.id,
-    name: file.name,
-    mime: file.type || "application/octet-stream",
-    size: file.size,
-  };
 }
 
 /** Fetch ciphertext and decrypt to an object URL for <img>/<video>. */
