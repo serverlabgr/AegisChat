@@ -10,17 +10,23 @@ import {
   Activity,
   Smile,
 } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isTauri } from "@tauri-apps/api/core";
 import { useStore } from "../../store/store";
 import { BUILD_VERSION, getAppVersion } from "../../lib/appVersion";
 import { pingTone } from "../../lib/ping";
+import { isTauri } from "../../lib/tauriEnv";
 import { HudReadout } from "../common/Hud";
 import "./CommandBar.css";
 
-async function withWindow(action: (win: ReturnType<typeof getCurrentWindow>) => Promise<void>) {
+async function withWindow(
+  action: (win: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<void>;
+    close: () => Promise<void>;
+  }) => Promise<void>,
+) {
   if (!isTauri()) return;
   try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await action(getCurrentWindow());
   } catch {
     /* Window APIs can fail outside a healthy Tauri shell */

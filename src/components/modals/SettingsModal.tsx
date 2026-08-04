@@ -21,7 +21,7 @@ import { getRecoveryKeyForDisplay } from "../../lib/vault";
 import { copyText } from "../../lib/clipboard";
 import { api, changePassword } from "../../lib/api";
 import { BUILD_VERSION, getAppVersion } from "../../lib/appVersion";
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "../../lib/tauriEnv";
 import "./SettingsModal.css";
 
 type Tab =

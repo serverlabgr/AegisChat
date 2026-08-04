@@ -4,6 +4,8 @@
 
 ## Εγκατάσταση (Windows)
 
+**Λήψη (LAN):** [http://192.168.1.235:8080/Aegis_latest_x64-setup.exe](http://192.168.1.235:8080/Aegis_latest_x64-setup.exe)
+
 1. Άνοιξε: **http://192.168.1.235:8080/**
 2. Κατέβασε **`Aegis_latest_x64-setup.exe`** (ή το portable zip)
 3. Εγκατάστησε / άνοιξε το Aegis
@@ -15,6 +17,8 @@
 
 Αν ο browser μπλοκάρει το GitHub `.exe` (false positive Defender), χρησιμοποίησε το LAN παραπάνω.
 Αλλιώς μπορείς και από: https://github.com/serverlabgr/AegisChat/releases
+
+> **Σημείωση:** το **0.7.3** δεν άνοιγε (panic από HTTP LAN updater endpoint). Εγκατάστησε **0.7.4+**.
 
 ## Updates
 

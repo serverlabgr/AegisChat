@@ -8,8 +8,7 @@ import {
   LogIn,
   UserPlus,
 } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "../../lib/tauriEnv";
 import { login, register } from "../../lib/api";
 import { bootstrapForUser } from "../../lib/session";
 import { loadServerUrl, saveServerUrl } from "../../lib/serverConfig";
@@ -25,10 +24,15 @@ interface ConnectScreenProps {
 type Mode = "login" | "register";
 
 async function withWindow(
-  action: (win: ReturnType<typeof getCurrentWindow>) => Promise<void>,
+  action: (win: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<void>;
+    close: () => Promise<void>;
+  }) => Promise<void>,
 ) {
   if (!isTauri()) return;
   try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await action(getCurrentWindow());
   } catch {
     /* Window APIs can fail outside a healthy Tauri shell */

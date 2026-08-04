@@ -1,5 +1,4 @@
 import { startTransition, useEffect, useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
 import { ConnectScreen } from "./components/screens/ConnectScreen";
 import { MainScreen } from "./components/screens/MainScreen";
 import { PingTicker } from "./components/common/PingTicker";
@@ -8,6 +7,7 @@ import { UpdateAvailableModal } from "./components/modals/UpdateAvailableModal";
 import { StoreProvider, useStore } from "./store/store";
 import { applyAccent } from "./lib/color";
 import { tryRestoreSession } from "./lib/session";
+import { isTauri } from "./lib/tauriEnv";
 import { checkForAppUpdate, installAppUpdate } from "./lib/updater";
 import "./styles/global.css";
 
@@ -189,11 +189,14 @@ function AppShell() {
 }
 
 export default function App() {
+  // ErrorBoundary must wrap StoreProvider so a store/init throw still shows UI.
   return (
-    <StoreProvider>
-      <ErrorBoundary>
-        <AppShell />
-      </ErrorBoundary>
-    </StoreProvider>
+    <ErrorBoundary>
+      <StoreProvider>
+        <ErrorBoundary fallbackTitle="Σφάλμα οθόνης">
+          <AppShell />
+        </ErrorBoundary>
+      </StoreProvider>
+    </ErrorBoundary>
   );
 }

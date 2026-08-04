@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "./tauriEnv";
 
 export async function getAutostartEnabled(): Promise<boolean> {
   if (!isTauri()) return false;

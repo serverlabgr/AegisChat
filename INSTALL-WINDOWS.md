@@ -60,7 +60,7 @@ LAN (`http://192.168.1.235:8080/latest.json`) είναι fallback αν το GitH
 Μετά από κάθε release, mirror στο VM (χωρίς να σβήνεις το GitHub):
 
 ```powershell
-.\scripts\publish-downloads-to-vm.ps1 -Tag v0.7.3
+.\scripts\publish-downloads-to-vm.ps1 -Tag v0.7.4
 ```
 
 Μην χρησιμοποιείς `-RemoveNsisFromGitHub` — σπάει τα in-app updates από GitHub.

@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "./tauriEnv";
 
 export type UpdateProgress = {
   phase: "checking" | "downloading" | "installing" | "relaunching";

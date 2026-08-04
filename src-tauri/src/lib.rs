@@ -1,6 +1,6 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let result = tauri::Builder::default()
     .plugin(tauri_plugin_store::Builder::new().build())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
@@ -15,6 +15,11 @@ pub fn run() {
       }
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .run(tauri::generate_context!());
+
+  if let Err(err) = result {
+    // Surface config/plugin panics (e.g. updater HTTP endpoints) instead of a silent exit.
+    eprintln!("Aegis failed to start: {err}");
+    std::process::exit(1);
+  }
 }
