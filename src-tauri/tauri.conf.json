@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Aegis",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "identifier": "com.aegis.chat",
   "build": {
     "frontendDist": "../dist",
@@ -68,6 +68,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzRjM5NENCQzQ4NEREMjQKUldRazNZVEV5NVR6Z3hMNjVLK2tzYkljNjlmNFVFT2MwMkIybzhvUWxyVHVQOE1hbTh4MmF1M08K",
       "endpoints": [
+        "https://github.com/serverlabgr/AegisChat/releases/latest/download/latest.json",
         "http://192.168.1.235:8080/latest.json"
       ],
       "windows": {

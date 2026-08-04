@@ -5,19 +5,19 @@
 | Υπηρεσία | URL |
 |----------|-----|
 | API + WebSocket | `http://192.168.1.235:3001` |
-| **Λήψεις (πρωτεύον)** | **`http://192.168.1.235:8080/`** |
+| **Λήψεις (fallback πρώτη εγκατάσταση)** | **`http://192.168.1.235:8080/`** |
 | Health | `http://192.168.1.235:3001/health` → `{"ok":true}` |
 
 Database: PostgreSQL (Docker στο VM, `/opt/aegis-chat/deploy`).
 
 ---
 
-## Εγκατάσταση (ΜΟΝΟ από LAN — μην χρησιμοποιείς GitHub .exe)
+## Εγκατάσταση
 
-Το GitHub download του μικρού Tauri NSIS συχνά μπλοκάρεται από browser / Microsoft cloud ως
+### Αν ο browser μπλοκάρει το GitHub .exe
+
+Το μικρό Tauri NSIS συχνά μπλοκάρεται από browser / Microsoft cloud ως
 `Trojan:Win32/Wacatac.B!ml` (ψευδής συναγερμός ML). **Κατέβασε από το VM.**
-
-### Προτεινόμενο: Setup από LAN (τοπικό scan καθαρό)
 
 1. Άνοιξε: **http://192.168.1.235:8080/Aegis_latest_x64-setup.exe**
 2. Τρέξε το installer (per-user, χωρίς UAC).
@@ -25,16 +25,14 @@ Database: PostgreSQL (Docker στο VM, `/opt/aegis-chat/deploy`).
 
 Ή άνοιξε τη λίστα: **http://192.168.1.235:8080/**
 
-### Εναλλακτικά: portable ZIP
+### Από GitHub (αν το Defender/browser το επιτρέπει)
+
+https://github.com/serverlabgr/AegisChat/releases — `Aegis_*_x64-setup.exe`
+
+### Portable ZIP
 
 - **http://192.168.1.235:8080/Aegis_latest_windows_x64.zip**
 - Unzip → `Aegis.exe`. Αν μπλοκάρει: `Unblock-File .\Aegis.exe`
-- Σημείωση: το ZIP μπορεί να χτυπήσει τοπικό Defender ML (`Trojan:Script/Wacatac.B!ml`)· **προτίμησε το Setup από LAN**.
-
-### GitHub (μόνο backup / developers)
-
-https://github.com/serverlabgr/AegisChat/releases — το `.exe` εκεί μπορεί να false-positive στο browser.
-Χρησιμοποίησε GitHub μόνο αν το LAN δεν είναι διαθέσιμο.
 
 Default **Server URL** = `http://192.168.1.235:3001`.
 Media: max **2GB** ανά αρχείο.
@@ -51,31 +49,35 @@ Media: max **2GB** ανά αρχείο.
 - Pass: `changeme123` → άλλαξέ το αμέσως από Ρυθμίσεις → Προφίλ
 - Invite: `parea-x9f2`
 
-## Updates
+## Updates (όπως το ToolBox)
 
-Ρυθμίσεις → Updates. Τα updates κατεβαίνουν από το LAN
-(`http://192.168.1.235:8080/latest.json` → setup στο ίδιο host), όχι από GitHub.
+**Ρυθμίσεις → Updates → Έλεγχος** — κατεβάζει από **GitHub Releases**
+(`…/releases/latest/download/latest.json`). Δεν χρειάζεται χειροκίνητο download.
 
-Δημοσίευση νέου release στο VM (από το PC του admin):
+LAN (`http://192.168.1.235:8080/latest.json`) είναι fallback αν το GitHub δεν είναι διαθέσιμο.
+
+Μετά από κάθε release, mirror στο VM (χωρίς να σβήνεις το GitHub):
 
 ```powershell
-.\scripts\publish-downloads-to-vm.ps1 -Tag v0.2.6 -RemoveNsisFromGitHub
+.\scripts\publish-downloads-to-vm.ps1 -Tag v0.7.2
 ```
 
-## Γιατί το ToolBox «δουλεύει» από GitHub και το Aegis όχι
+Μην χρησιμοποιείς `-RemoveNsisFromGitHub` — σπάει τα in-app updates από GitHub.
 
-- Το ToolBox NSIS είναι ~**250 MB** (Electron) με αρκετό ιστορικό downloads → καλύτερη φήμη στο cloud ML.
-- Το Aegis NSIS είναι ~**4 MB** (Tauri) → συχνά πέφτει σε `Wacatac.!ml` false positive στο **browser/cloud**, ακόμα κι αν το τοπικό Defender είναι καθαρό.
-- **Μόνιμη λύση για internet downloads:** Authenticode / **Azure Trusted Signing** (βλ. παρακάτω). Μέχρι τότε: **μόνο LAN**.
+## Browser vs in-app
+
+- Το ToolBox NSIS είναι ~**250 MB** (Electron) → καλύτερη φήμη στο cloud ML για browser downloads.
+- Το Aegis NSIS είναι ~**4 MB** (Tauri) → συχνά `Wacatac.!ml` στο **browser**, όχι στο in-app updater.
+- **In-app updates** τραβάνε απευθείας από GitHub (χωρίς browser) και δουλεύουν κανονικά.
+- **Μόνιμη λύση για internet browser downloads:** Authenticode / **Azure Trusted Signing**.
 
 ## Authenticode / Azure Trusted Signing (μελλοντικά)
 
-Χωρίς υπογραφή κώδικα, τυχαία internet downloads θα συνεχίζουν να μπλοκάρονται.
 Όταν υπάρχουν credentials Azure Trusted Signing:
 
 1. Πρόσθεσε secrets στο GitHub (endpoint, account, certificate profile, κ.λπ.)
 2. Ενεργοποίησε το προαιρετικό βήμα στο `.github/workflows/release.yml` (σχόλια `Azure Trusted Signing`)
-3. Ξαναχτίσε και δημοσίευσε — τότε το GitHub `.exe` γίνεται ασφαλές για φίλους εκτός LAN
+3. Ξαναχτίσε και δημοσίευσε — τότε το GitHub `.exe` γίνεται ασφαλές και για browser downloads
 
 Μην βάζεις self-signed / fake PFX.
 

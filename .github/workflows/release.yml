@@ -56,29 +56,30 @@ jobs:
           tagName: v__VERSION__
           releaseName: "Aegis v__VERSION__"
           releaseBody: |
-            ## Εγκατάσταση (Windows) — LAN πρώτα
+            ## Updates (ήδη εγκατεστημένοι)
 
-            **Μην κατεβάζεις το Setup από GitHub** αν ο browser δείχνει virus (Wacatac ML false positive).
+            **Ρυθμίσεις → Updates → Έλεγχος** — κατεβάζει από GitHub Releases (όπως το ToolBox).
+            Δεν χρειάζεται χειροκίνητο download κάθε φορά.
 
-            ### Προτεινόμενο (παρέα στο ίδιο LAN)
+            ## Πρώτη εγκατάσταση (Windows)
+
+            ### Αν ο browser μπλοκάρει το GitHub .exe (Wacatac ML)
             Άνοιξε **http://192.168.1.235:8080/** και κατέβασε:
-            - **`Aegis_latest_x64-setup.exe`** (προτεινόμενο — τοπικό Defender καθαρό)
+            - **`Aegis_latest_x64-setup.exe`**
             - ή `Aegis_latest_windows_x64.zip` → unzip → `Aegis.exe`
 
             Server URL: `http://192.168.1.235:3001`
 
-            Οδηγίες: `INSTALL-WINDOWS.md`
+            ### Από αυτό το Release
+            `Aegis_*_x64-setup.exe` — OK αν το Defender/browser το επιτρέπει.
+            Portable: `Aegis_*_windows_x64.zip`
 
-            ### Portable zip (αυτό το Release)
-            `Aegis_*_windows_x64.zip` — secondary· προτίμησε LAN αν υπάρχει block.
-
-            ## Updates
-            Από LAN: `http://192.168.1.235:8080/latest.json` (setup στο ίδιο host).
-            Μετά από κάθε release: `.\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub`
+            Οδηγίες: `INSTALL-WINDOWS.md` / `FRIENDS.md`
 
             ## Signing
-            Χωρίς Authenticode / Azure Trusted Signing, internet GitHub .exe downloads
-            θα συνεχίσουν να false-positive. Το LAN είναι η σωστή διανομή για την παρέα.
+            Χωρίς Authenticode / Azure Trusted Signing, μερικά browser downloads από GitHub
+            μπορεί να false-positive. Το LAN `:8080` είναι fallback για πρώτη εγκατάσταση.
+            Τα in-app updates δεν περνούν από browser και δουλεύουν κανονικά από GitHub.
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
@@ -106,13 +107,13 @@ jobs:
           gh release upload $tag $zipPath --clobber
           Write-Host "Uploaded $zipName to $tag"
 
-      # Keep NSIS on the release long enough for publish-downloads-to-vm.ps1 to fetch it.
-      # After LAN publish, run: .\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub
-      # (strips setup + GitHub latest.json so friends are not steered to cloud-flagged assets)
-      - name: Reminder — publish to LAN VM
+      # Keep NSIS + latest.json on GitHub (primary in-app updater path).
+      # Mirror to LAN for first-time install / Defender browser block fallback.
+      - name: Reminder — mirror to LAN VM
         shell: pwsh
         run: |
           $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          Write-Host "CI done. From admin PC run:"
-          Write-Host "  .\scripts\publish-downloads-to-vm.ps1 -Tag v$ver -RemoveNsisFromGitHub"
-          Write-Host "Friends install from http://192.168.1.235:8080/"
+          Write-Host "CI done. Keep GitHub NSIS assets. From admin PC mirror to LAN:"
+          Write-Host "  .\scripts\publish-downloads-to-vm.ps1 -Tag v$ver"
+          Write-Host "Do NOT pass -RemoveNsisFromGitHub (breaks GitHub in-app updates)."
+          Write-Host "Friends first install (if browser blocks GitHub): http://192.168.1.235:8080/"

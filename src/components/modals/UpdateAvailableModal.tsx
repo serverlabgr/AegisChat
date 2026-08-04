@@ -18,7 +18,7 @@ export function UpdateAvailableModal({
   return (
     <Modal
       title="Νέα έκδοση διαθέσιμη"
-      subtitle="Κατεβάζει το Setup από GitHub και ανοίγει τον installer (όπως το ToolBox)."
+      subtitle="Κατεβάζει από GitHub Releases και εγκαθιστά (όπως το ToolBox)."
       onClose={onSkip}
       width={440}
     >

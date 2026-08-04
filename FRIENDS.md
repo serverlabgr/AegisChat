@@ -1,6 +1,6 @@
 # Aegis — οδηγίες για την παρέα
 
-Γρήγορο one-pager για εγκατάσταση στο LAN. **Μην κατεβάζεις το Setup από GitHub** (συχνά false positive Defender σε μικρά Tauri .exe).
+Γρήγορο one-pager για εγκατάσταση στο LAN.
 
 ## Εγκατάσταση (Windows)
 
@@ -13,9 +13,13 @@
 
 5. Login με invite code (από τον admin της παρέας)
 
+Αν ο browser μπλοκάρει το GitHub `.exe` (false positive Defender), χρησιμοποίησε το LAN παραπάνω.
+Αλλιώς μπορείς και από: https://github.com/serverlabgr/AegisChat/releases
+
 ## Updates
 
-Από το app: **Settings → Updates**. Τραβάει από `http://192.168.1.235:8080/latest.json`.
+Από το app: **Ρυθμίσεις → Updates → Έλεγχος**. Τραβάει από **GitHub Releases** (όπως το ToolBox).
+Το LAN (`http://192.168.1.235:8080/`) είναι μόνο για πρώτη εγκατάσταση αν μπλοκάρει ο browser.
 
 ## Recovery Key
 
@@ -27,7 +31,7 @@
 - Voice mesh στα voice channels
 - Radio (συγχρονισμένα streams)
 - Game sessions + Dev Portal tokens/webhooks + Toolbox
-- LAN updater: http://192.168.1.235:8080/
+- In-app updater: GitHub Releases (+ LAN fallback)
 
 ## Remote (εκτός Wi‑Fi)
 

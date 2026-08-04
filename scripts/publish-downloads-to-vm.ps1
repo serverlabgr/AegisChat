@@ -1,10 +1,13 @@
-# Download latest (or tagged) Aegis release assets and publish them to the LAN VM
+# Download latest (or tagged) Aegis release assets and mirror them to the LAN VM
 # downloads nginx at http://192.168.1.235:8080/
 #
+# Default: keep NSIS + latest.json on GitHub (in-app updater primary path).
 # Example:
 #   .\scripts\publish-downloads-to-vm.ps1
-#   .\scripts\publish-downloads-to-vm.ps1 -Tag v0.2.6
-#   .\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub
+#   .\scripts\publish-downloads-to-vm.ps1 -Tag v0.7.2
+#
+# -RemoveNsisFromGitHub is discouraged — it breaks GitHub in-app updates.
+# Only use for rare emergency LAN-only distribution.
 
 param(
   [string]$Tag = '',
@@ -96,7 +99,8 @@ Write-Host "  Index: $LanBase/"
 
 if ($RemoveNsisFromGitHub) {
   Write-Host ''
-  Write-Host 'Removing NSIS + GitHub latest.json from GitHub Releases (LAN is source of truth)...' -ForegroundColor Yellow
+  Write-Host 'WARNING: -RemoveNsisFromGitHub breaks GitHub in-app updates (ToolBox-style). Prefer leaving assets on the release.' -ForegroundColor Red
+  Write-Host 'Removing NSIS + latest.json from GitHub Releases...' -ForegroundColor Yellow
   $toDelete = @($setup.Name, "$($setup.Name).sig", 'latest.json')
   foreach ($name in $toDelete) {
     try {
@@ -106,6 +110,9 @@ if ($RemoveNsisFromGitHub) {
       Write-Host "  skip $name : $_"
     }
   }
+} else {
+  Write-Host ''
+  Write-Host 'GitHub NSIS + latest.json kept (in-app updater primary). LAN is mirror/fallback.' -ForegroundColor Green
 }
 
 Write-Host ''

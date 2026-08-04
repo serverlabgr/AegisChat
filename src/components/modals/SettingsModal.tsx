@@ -402,10 +402,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 Τρέχουσα έκδοση: <strong>v{appVersion}</strong>
               </p>
               <p className="settings__hint">
-                Τα updates κατεβάζουν το Setup από τον LAN updater (
-                <code>http://192.168.1.235:8080</code>) — όχι από GitHub Releases.
-                Διαθέσιμο μόνο στο desktop app. Μην κατεβάζεις το .exe από GitHub
-                (false positive Defender).
+                Τα updates κατεβαίνουν από GitHub Releases (όπως το ToolBox).
+                Αν το GitHub δεν είναι διαθέσιμο, δοκιμάζει LAN (
+                <code>http://192.168.1.235:8080</code>). Διαθέσιμο μόνο στο desktop
+                app. Για πρώτη εγκατάσταση: αν ο browser μπλοκάρει το GitHub .exe,
+                κατέβασε από το LAN.
               </p>
               {updateInfo ? <p className="settings__hint">{updateInfo}</p> : null}
               <button

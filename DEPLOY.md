@@ -17,8 +17,8 @@ curl -I http://127.0.0.1:8080/
 ```
 
 - API: `http://192.168.1.235:3001`
-- **Downloads (πρωτεύον install path):** `http://192.168.1.235:8080/`
-- App updates: LAN `latest.json` (όχι GitHub) — δες `INSTALL-WINDOWS.md`
+- **Downloads (fallback πρώτη εγκατάσταση):** `http://192.168.1.235:8080/`
+- App updates: **GitHub Releases** `latest.json` (LAN fallback) — δες `INSTALL-WINDOWS.md`
 - Backup: `./backup.sh` (SQL + encrypted uploads) — cron ήδη ή:
 
 ```bash
@@ -40,16 +40,18 @@ ssh craccchat@192.168.1.235 "bash /opt/aegis-chat/deploy/update.sh"
 Δες `deploy/headscale.README.md`. Μέχρι να στηθεί Headscale, η παρέα μένει στο LAN
 `http://192.168.1.235:3001`. Μετά το Headscale, το Server URL γίνεται το 100.x IP του VM.
 
-Μετά από κάθε Windows release:
+Μετά από κάθε Windows release (mirror στο LAN — **μην** σβήνεις GitHub assets):
 
 ```powershell
-.\scripts\publish-downloads-to-vm.ps1 -RemoveNsisFromGitHub
+.\scripts\publish-downloads-to-vm.ps1 -Tag vX.Y.Z
 ```
 
-### Γιατί όχι GitHub .exe για την παρέα
+### Browser vs in-app updates
 
-Μικρό Tauri NSIS (~4 MB) συχνά παίρνει cloud ML false positive (`Wacatac`). Το Electron ToolBox (~250 MB) έχει καλύτερη φήμη.
-**Μόνιμη internet λύση:** Azure Trusted Signing / Authenticode (σχόλια στο `release.yml`). Μέχρι τότε: μόνο LAN `:8080`.
+Μικρό Tauri NSIS (~4 MB) συχνά παίρνει cloud ML false positive (`Wacatac`) στο **browser**.
+Τα **in-app updates** (Ρυθμίσεις → Updates) τραβάνε από GitHub χωρίς browser — όπως το ToolBox.
+LAN `:8080` μένει για πρώτη εγκατάσταση αν μπλοκάρει ο browser.
+**Μόνιμη λύση για browser downloads:** Azure Trusted Signing / Authenticode (σχόλια στο `release.yml`).
 
 ---
 
@@ -183,8 +185,9 @@ bash deploy/update.sh
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`
 3. Οι ήδη εγκατεστημένοι clients: **Ρυθμίσεις → Updates** (ή αυτόματο prompt στο άνοιγμα)
 
-Το updater διαβάζει:
-`https://github.com/mpoukas/aegis-chat/releases/latest/download/latest.json`
+Το updater διαβάζει (GitHub πρώτα, LAN fallback):
+`https://github.com/serverlabgr/AegisChat/releases/latest/download/latest.json`
+`http://192.168.1.235:8080/latest.json`
 
 Το repo πρέπει να είναι **public** (ή να ρυθμίσεις auth στο updater — για παρέα, public είναι το απλούστερο).
 
