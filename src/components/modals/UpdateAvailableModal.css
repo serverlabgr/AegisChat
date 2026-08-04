@@ -26,6 +26,26 @@
   color: var(--text);
 }
 
+.update-modal__progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.update-modal__progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #5b8cff);
+  transition: width 0.2s ease;
+}
+
+.update-modal__status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
 .update-modal__actions {
   display: flex;
   justify-content: flex-end;

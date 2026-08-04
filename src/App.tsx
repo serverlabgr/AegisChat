@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { ConnectScreen } from "./components/screens/ConnectScreen";
 import { MainScreen } from "./components/screens/MainScreen";
 import { PingTicker } from "./components/common/PingTicker";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { UpdateAvailableModal } from "./components/modals/UpdateAvailableModal";
 import { StoreProvider, useStore } from "./store/store";
 import { applyAccent } from "./lib/color";
@@ -44,6 +45,8 @@ function AppShell() {
   const [screen, setScreen] = useState<Screen>("boot");
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [updatePercent, setUpdatePercent] = useState<number | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const { settings, hydrateFromServer, connectRealtime, disconnectRealtime, onlineMode, toast } =
     useStore();
 
@@ -56,16 +59,20 @@ function AppShell() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const boot = await tryRestoreSession();
-      if (cancelled) return;
-      startTransition(() => {
-        if (boot) {
-          hydrateFromServer(boot);
-          setScreen("main");
-        } else {
-          setScreen("connect");
-        }
-      });
+      try {
+        const boot = await tryRestoreSession();
+        if (cancelled) return;
+        startTransition(() => {
+          if (boot) {
+            hydrateFromServer(boot);
+            setScreen("main");
+          } else {
+            setScreen("connect");
+          }
+        });
+      } catch {
+        if (!cancelled) setScreen("connect");
+      }
     })();
     return () => {
       cancelled = true;
@@ -134,7 +141,10 @@ function AppShell() {
         <UpdateAvailableModal
           version={updateVersion}
           busy={updateBusy}
+          progressPercent={updatePercent}
+          statusText={updateStatus}
           onSkip={() => {
+            if (updateBusy) return;
             try {
               localStorage.setItem(SKIP_KEY, updateVersion);
             } catch {
@@ -144,11 +154,31 @@ function AppShell() {
           }}
           onInstall={() => {
             setUpdateBusy(true);
+            setUpdatePercent(0);
+            setUpdateStatus("Ενημέρωση… η εφαρμογή θα επανεκκινήσει");
             void (async () => {
-              const ok = await installAppUpdate();
-              if (!ok) {
+              const result = await installAppUpdate((p) => {
+                if (p.phase === "downloading") {
+                  setUpdatePercent(
+                    typeof p.percent === "number" ? p.percent : null,
+                  );
+                  setUpdateStatus(
+                    typeof p.percent === "number"
+                      ? `Λήψη… ${p.percent}%`
+                      : "Λήψη…",
+                  );
+                } else if (p.phase === "installing") {
+                  setUpdatePercent(100);
+                  setUpdateStatus("Εγκατάσταση… η εφαρμογή θα επανεκκινήσει");
+                } else if (p.phase === "relaunching") {
+                  setUpdateStatus("Επανεκκίνηση…");
+                }
+              });
+              if (!result.ok) {
                 setUpdateBusy(false);
-                toast("Αποτυχία update — δοκίμασε από Ρυθμίσεις → Updates");
+                setUpdatePercent(null);
+                setUpdateStatus(null);
+                toast(result.error);
               }
             })();
           }}
@@ -161,7 +191,9 @@ function AppShell() {
 export default function App() {
   return (
     <StoreProvider>
-      <AppShell />
+      <ErrorBoundary>
+        <AppShell />
+      </ErrorBoundary>
     </StoreProvider>
   );
 }

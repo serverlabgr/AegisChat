@@ -64,12 +64,16 @@ export class RealtimeClient {
 
   async connect() {
     this.stopped = false;
-    const access =
-      (await ensureFreshAccessToken()) ??
-      (await loadTokens())?.accessToken ??
-      null;
-    if (!access) return;
-    this.open(access);
+    try {
+      const access =
+        (await ensureFreshAccessToken()) ??
+        (await loadTokens())?.accessToken ??
+        null;
+      if (!access) return;
+      this.open(access);
+    } catch {
+      if (!this.stopped) this.scheduleReconnect();
+    }
   }
 
   private open(accessToken: string) {
@@ -117,139 +121,15 @@ export class RealtimeClient {
       } catch {
         return;
       }
-      switch (msg.type) {
-        case "hello":
-          this.handlers.onHello?.(msg.online ?? [], msg.radio);
-          break;
-        case "presence":
-          if (msg.userId && msg.status) {
-            this.handlers.onPresence?.(msg.userId, msg.status);
-          }
-          break;
-        case "typing":
-          if (msg.channelId && msg.userId) {
-            this.handlers.onTyping?.(msg.channelId, msg.userId);
-          }
-          break;
-        case "message":
-          if (msg.channelId && msg.message) {
-            this.handlers.onMessage?.(msg.channelId, msg.message);
-          }
-          break;
-        case "message_updated":
-          if (msg.channelId && msg.message) {
-            this.handlers.onMessageUpdated?.(msg.channelId, msg.message);
-          }
-          break;
-        case "message_deleted":
-          if (msg.channelId && msg.messageId) {
-            this.handlers.onMessageDeleted?.(msg.channelId, msg.messageId);
-          }
-          break;
-        case "reaction":
-          if (
-            msg.channelId &&
-            msg.messageId &&
-            msg.emoji &&
-            msg.userId &&
-            typeof msg.added === "boolean"
-          ) {
-            this.handlers.onReaction?.(
-              msg.channelId,
-              msg.messageId,
-              msg.emoji,
-              msg.userId,
-              msg.added,
-            );
-          }
-          break;
-        case "dm":
-          if (msg.threadId && msg.message) {
-            this.handlers.onDm?.(msg.threadId, msg.message);
-          }
-          break;
-        case "dm_updated":
-          if (msg.threadId && msg.message) {
-            this.handlers.onDmUpdated?.(msg.threadId, msg.message);
-          }
-          break;
-        case "dm_deleted":
-          if (msg.threadId && msg.messageId) {
-            this.handlers.onDmDeleted?.(msg.threadId, msg.messageId);
-          }
-          break;
-        case "dm_reaction":
-          if (
-            msg.threadId &&
-            msg.messageId &&
-            msg.emoji &&
-            msg.userId &&
-            typeof msg.added === "boolean"
-          ) {
-            this.handlers.onDmReaction?.(
-              msg.threadId,
-              msg.messageId,
-              msg.emoji,
-              msg.userId,
-              msg.added,
-            );
-          }
-          break;
-        case "read":
-          if (msg.targetId && msg.userId) {
-            this.handlers.onRead?.(
-              msg.targetId,
-              msg.userId,
-              msg.lastMessageId ?? null,
-            );
-          }
-          break;
-        case "friend_request":
-          if (msg.request) {
-            this.handlers.onFriendRequest?.(msg.request);
-          }
-          break;
-        case "rtc":
-          if (msg.fromUserId && msg.threadId && msg.signal != null) {
-            this.handlers.onRtc?.(msg.fromUserId, msg.threadId, msg.signal);
-          }
-          break;
-        case "voice_state":
-          if (msg.channelId && msg.participants) {
-            this.handlers.onVoiceState?.(msg.channelId, msg.participants);
-          }
-          break;
-        case "voice_signal":
-          if (
-            msg.channelId &&
-            msg.fromUserId &&
-            msg.toUserId &&
-            msg.signal != null
-          ) {
-            this.handlers.onVoiceSignal?.(
-              msg.channelId,
-              msg.fromUserId,
-              msg.toUserId,
-              msg.signal,
-            );
-          }
-          break;
-        case "radio_state":
-          if (msg.state) {
-            this.handlers.onRadioState?.(msg.state);
-          }
-          break;
-        case "game_session":
-          if (msg.session && msg.action) {
-            this.handlers.onGameSession?.(msg.session, msg.action);
-          }
-          break;
-        case "pong":
-          if (typeof msg.clientTime === "number") {
-            this.handlers.onPong?.(Date.now() - msg.clientTime);
-          }
-          break;
+      try {
+        this.dispatch(msg);
+      } catch {
+        /* Handler bugs must not kill the socket */
       }
+    };
+
+    ws.onerror = () => {
+      // onclose will fire and schedule reconnect
     };
 
     ws.onclose = () => {
@@ -257,6 +137,166 @@ export class RealtimeClient {
       this.handlers.onClose?.();
       if (!this.stopped) this.scheduleReconnect();
     };
+  }
+
+  private dispatch(msg: {
+    type: string;
+    userId?: string;
+    status?: string;
+    channelId?: string;
+    threadId?: string;
+    message?: unknown;
+    messageId?: string;
+    emoji?: string;
+    added?: boolean;
+    request?: unknown;
+    online?: string[];
+    clientTime?: number;
+    serverTime?: number;
+    fromUserId?: string;
+    toUserId?: string;
+    signal?: unknown;
+    participants?: VoiceParticipant[];
+    state?: RadioState;
+    radio?: RadioState;
+    targetId?: string;
+    lastMessageId?: string | null;
+    session?: unknown;
+    action?: "created" | "updated" | "deleted";
+  }) {
+    switch (msg.type) {
+      case "hello":
+        this.handlers.onHello?.(msg.online ?? [], msg.radio);
+        break;
+      case "presence":
+        if (msg.userId && msg.status) {
+          this.handlers.onPresence?.(msg.userId, msg.status);
+        }
+        break;
+      case "typing":
+        if (msg.channelId && msg.userId) {
+          this.handlers.onTyping?.(msg.channelId, msg.userId);
+        }
+        break;
+      case "message":
+        if (msg.channelId && msg.message) {
+          this.handlers.onMessage?.(msg.channelId, msg.message);
+        }
+        break;
+      case "message_updated":
+        if (msg.channelId && msg.message) {
+          this.handlers.onMessageUpdated?.(msg.channelId, msg.message);
+        }
+        break;
+      case "message_deleted":
+        if (msg.channelId && msg.messageId) {
+          this.handlers.onMessageDeleted?.(msg.channelId, msg.messageId);
+        }
+        break;
+      case "reaction":
+        if (
+          msg.channelId &&
+          msg.messageId &&
+          msg.emoji &&
+          msg.userId &&
+          typeof msg.added === "boolean"
+        ) {
+          this.handlers.onReaction?.(
+            msg.channelId,
+            msg.messageId,
+            msg.emoji,
+            msg.userId,
+            msg.added,
+          );
+        }
+        break;
+      case "dm":
+        if (msg.threadId && msg.message) {
+          this.handlers.onDm?.(msg.threadId, msg.message);
+        }
+        break;
+      case "dm_updated":
+        if (msg.threadId && msg.message) {
+          this.handlers.onDmUpdated?.(msg.threadId, msg.message);
+        }
+        break;
+      case "dm_deleted":
+        if (msg.threadId && msg.messageId) {
+          this.handlers.onDmDeleted?.(msg.threadId, msg.messageId);
+        }
+        break;
+      case "dm_reaction":
+        if (
+          msg.threadId &&
+          msg.messageId &&
+          msg.emoji &&
+          msg.userId &&
+          typeof msg.added === "boolean"
+        ) {
+          this.handlers.onDmReaction?.(
+            msg.threadId,
+            msg.messageId,
+            msg.emoji,
+            msg.userId,
+            msg.added,
+          );
+        }
+        break;
+      case "read":
+        if (msg.targetId && msg.userId) {
+          this.handlers.onRead?.(
+            msg.targetId,
+            msg.userId,
+            msg.lastMessageId ?? null,
+          );
+        }
+        break;
+      case "friend_request":
+        if (msg.request) {
+          this.handlers.onFriendRequest?.(msg.request);
+        }
+        break;
+      case "rtc":
+        if (msg.fromUserId && msg.threadId && msg.signal != null) {
+          this.handlers.onRtc?.(msg.fromUserId, msg.threadId, msg.signal);
+        }
+        break;
+      case "voice_state":
+        if (msg.channelId && msg.participants) {
+          this.handlers.onVoiceState?.(msg.channelId, msg.participants);
+        }
+        break;
+      case "voice_signal":
+        if (
+          msg.channelId &&
+          msg.fromUserId &&
+          msg.toUserId &&
+          msg.signal != null
+        ) {
+          this.handlers.onVoiceSignal?.(
+            msg.channelId,
+            msg.fromUserId,
+            msg.toUserId,
+            msg.signal,
+          );
+        }
+        break;
+      case "radio_state":
+        if (msg.state) {
+          this.handlers.onRadioState?.(msg.state);
+        }
+        break;
+      case "game_session":
+        if (msg.session && msg.action) {
+          this.handlers.onGameSession?.(msg.session, msg.action);
+        }
+        break;
+      case "pong":
+        if (typeof msg.clientTime === "number") {
+          this.handlers.onPong?.(Date.now() - msg.clientTime);
+        }
+        break;
+    }
   }
 
   private startPing() {
@@ -281,7 +321,9 @@ export class RealtimeClient {
     this.attempt += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      void this.connect();
+      void this.connect().catch(() => {
+        if (!this.stopped) this.scheduleReconnect();
+      });
     }, delay);
   }
 

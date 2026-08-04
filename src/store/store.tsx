@@ -956,7 +956,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return { ...prev, channelId: null, participants };
     });
-    void leaveVoiceMesh(true);
+    void leaveVoiceMesh(true).catch(() => undefined);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -1381,7 +1381,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast(`Νέο αίτημα φιλίας από ${req.name}`);
       },
       onRtc: (fromUserId, threadId, signal) => {
-        void handleRtcSignal(fromUserId, threadId, signal as RtcSignal);
+        void handleRtcSignal(fromUserId, threadId, signal as RtcSignal).catch(
+          () => undefined,
+        );
       },
       onVoiceState: (channelId, participants: VoiceParticipant[]) => {
         setVoice((prev) => ({
@@ -1391,7 +1393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             [channelId]: participants.map((p) => p.userId),
           },
         }));
-        void syncVoiceParticipants(participants);
+        void syncVoiceParticipants(participants).catch(() => undefined);
       },
       onVoiceSignal: (channelId, fromUserId, toUserId, signal) => {
         void handleVoiceSignal(
@@ -1399,7 +1401,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           fromUserId,
           toUserId,
           signal as VoiceSignal,
-        );
+        ).catch(() => undefined);
       },
       onRadioState: (state) => {
         window.dispatchEvent(

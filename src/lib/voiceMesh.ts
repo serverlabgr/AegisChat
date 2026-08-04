@@ -66,18 +66,42 @@ async function connectToPeer(peerId: string, polite: boolean) {
 
 async function ensureLocalMic() {
   if (localStream) return localStream;
-  localStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    video: false,
-  });
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+  } catch (err) {
+    throw new Error(micPermissionMessage(err));
+  }
   for (const track of localStream.getAudioTracks()) {
     track.enabled = !muted;
   }
   return localStream;
+}
+
+function micPermissionMessage(err: unknown): string {
+  const name =
+    err instanceof DOMException
+      ? err.name
+      : err instanceof Error
+        ? err.name
+        : "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "Χρειάζεται άδεια μικροφώνου (Windows / browser). Έλεγξε τα permissions και ξαναμπές.";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "Δεν βρέθηκε μικρόφωνο.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "Το μικρόφωνο χρησιμοποιείται από άλλη εφαρμογή.";
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Δεν ανοίγει το μικρόφωνο";
 }
 
 export async function joinVoiceMesh(
@@ -105,18 +129,22 @@ export async function joinVoiceMesh(
 
 export async function syncVoiceParticipants(list: VoiceParticipant[]) {
   if (!channelId || !myUserId) return;
-  const ids = new Set(list.map((p) => p.userId));
-  for (const [peerId, peer] of [...peers.entries()]) {
-    if (!ids.has(peerId)) {
-      peer.pc.close();
-      peer.remoteAudio.srcObject = null;
-      peers.delete(peerId);
+  try {
+    const ids = new Set(list.map((p) => p.userId));
+    for (const [peerId, peer] of [...peers.entries()]) {
+      if (!ids.has(peerId)) {
+        peer.pc.close();
+        peer.remoteAudio.srcObject = null;
+        peers.delete(peerId);
+      }
     }
-  }
-  for (const p of list) {
-    if (p.userId === myUserId || peers.has(p.userId)) continue;
-    const shouldOffer = myUserId < p.userId;
-    await connectToPeer(p.userId, !shouldOffer);
+    for (const p of list) {
+      if (p.userId === myUserId || peers.has(p.userId)) continue;
+      const shouldOffer = myUserId < p.userId;
+      await connectToPeer(p.userId, !shouldOffer);
+    }
+  } catch {
+    /* Peer connect races — keep mesh alive */
   }
 }
 
@@ -127,29 +155,33 @@ export async function handleVoiceSignal(
   signal: VoiceSignal,
 ) {
   if (voiceChannelId !== channelId || !myUserId) return;
-  let peer = peers.get(fromUserId);
-  if (!peer) peer = makePc(fromUserId);
+  try {
+    let peer = peers.get(fromUserId);
+    if (!peer) peer = makePc(fromUserId);
 
-  if (signal.kind === "offer") {
-    await peer.pc.setRemoteDescription(signal.sdp);
-    const answer = await peer.pc.createAnswer();
-    await peer.pc.setLocalDescription(answer);
-    realtime.sendVoiceSignal(voiceChannelId, fromUserId, {
-      kind: "answer",
-      sdp: answer,
-    });
-    return;
-  }
-  if (signal.kind === "answer") {
-    await peer.pc.setRemoteDescription(signal.sdp);
-    return;
-  }
-  if (signal.kind === "ice" && signal.candidate) {
-    try {
-      await peer.pc.addIceCandidate(signal.candidate);
-    } catch {
-      /* ignore */
+    if (signal.kind === "offer") {
+      await peer.pc.setRemoteDescription(signal.sdp);
+      const answer = await peer.pc.createAnswer();
+      await peer.pc.setLocalDescription(answer);
+      realtime.sendVoiceSignal(voiceChannelId, fromUserId, {
+        kind: "answer",
+        sdp: answer,
+      });
+      return;
     }
+    if (signal.kind === "answer") {
+      await peer.pc.setRemoteDescription(signal.sdp);
+      return;
+    }
+    if (signal.kind === "ice" && signal.candidate) {
+      try {
+        await peer.pc.addIceCandidate(signal.candidate);
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* Bad SDP / race during leave — don't crash the UI */
   }
 }
 

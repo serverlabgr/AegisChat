@@ -18,8 +18,8 @@
 
 ## Updates
 
-Από το app: **Ρυθμίσεις → Updates → Έλεγχος**. Τραβάει από **GitHub Releases** (όπως το ToolBox).
-Το LAN (`http://192.168.1.235:8080/`) είναι μόνο για πρώτη εγκατάσταση αν μπλοκάρει ο browser.
+Από το app: **Ρυθμίσεις → Updates → Έλεγχος**. Κατεβάζει σιωπηλά και επανεκκινεί
+(χωρίς Setup wizard). Πρώτα GitHub Releases, LAN μόνο ως fallback.
 
 ## Recovery Key
 

@@ -20,7 +20,11 @@ import "./CommandBar.css";
 
 async function withWindow(action: (win: ReturnType<typeof getCurrentWindow>) => Promise<void>) {
   if (!isTauri()) return;
-  await action(getCurrentWindow());
+  try {
+    await action(getCurrentWindow());
+  } catch {
+    /* Window APIs can fail outside a healthy Tauri shell */
+  }
 }
 
 export function CommandBar({ onOpenCommand }: { onOpenCommand: () => void }) {

@@ -5,6 +5,9 @@ import "./UpdateAvailableModal.css";
 interface Props {
   version: string;
   busy: boolean;
+  /** Optional download percent 0–100 while busy */
+  progressPercent?: number | null;
+  statusText?: string | null;
   onInstall: () => void;
   onSkip: () => void;
 }
@@ -12,13 +15,21 @@ interface Props {
 export function UpdateAvailableModal({
   version,
   busy,
+  progressPercent,
+  statusText,
   onInstall,
   onSkip,
 }: Props) {
+  const busyLabel =
+    statusText ??
+    (typeof progressPercent === "number"
+      ? `Λήψη… ${progressPercent}%`
+      : "Ενημέρωση… η εφαρμογή θα επανεκκινήσει");
+
   return (
     <Modal
       title="Νέα έκδοση διαθέσιμη"
-      subtitle="Κατεβάζει από GitHub Releases και εγκαθιστά (όπως το ToolBox)."
+      subtitle="Σιωπηλή ενημέρωση μέσα από το app — χωρίς οδηγό εγκατάστασης."
       onClose={onSkip}
       width={440}
     >
@@ -28,9 +39,26 @@ export function UpdateAvailableModal({
           <span>Aegis v{version}</span>
         </div>
         <p className="update-modal__body">
-          Θέλεις να κατεβάσεις το Setup και να τρέξεις τον installer τώρα; Η εφαρμογή
-          θα κλείσει και θα ανοίξει ο οδηγός εγκατάστασης.
+          Θέλεις να κατεβάσεις και να εγκαταστήσεις τώρα; Η ενημέρωση γίνεται
+          στο παρασκήνιο και η εφαρμογή επανεκκινεί αυτόματα — χωρίς Setup wizard.
         </p>
+        {busy && typeof progressPercent === "number" ? (
+          <div
+            className="update-modal__progress"
+            role="progressbar"
+            aria-valuenow={progressPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="update-modal__progress-bar"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        ) : null}
+        {busy ? (
+          <p className="update-modal__status">{busyLabel}</p>
+        ) : null}
         <div className="update-modal__actions">
           <button
             type="button"
@@ -47,7 +75,7 @@ export function UpdateAvailableModal({
             disabled={busy}
           >
             <Download size={16} />
-            {busy ? "Εγκατάσταση…" : "Ενημέρωση τώρα"}
+            {busy ? "Ενημέρωση…" : "Ενημέρωση τώρα"}
           </button>
         </div>
       </div>

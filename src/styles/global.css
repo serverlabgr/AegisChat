@@ -45,6 +45,52 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.error-boundary {
+  margin: auto;
+  max-width: 420px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.error-boundary__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.error-boundary__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.error-boundary__detail {
+  margin: 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: auto;
+  max-height: 120px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-boundary__actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .app {
   position: absolute;
   inset: 0;

@@ -49,7 +49,7 @@ ssh craccchat@192.168.1.235 "bash /opt/aegis-chat/deploy/update.sh"
 ### Browser vs in-app updates
 
 Μικρό Tauri NSIS (~4 MB) συχνά παίρνει cloud ML false positive (`Wacatac`) στο **browser**.
-Τα **in-app updates** (Ρυθμίσεις → Updates) τραβάνε από GitHub χωρίς browser — όπως το ToolBox.
+Τα **in-app updates** (Ρυθμίσεις → Updates) κατεβαίνουν σιωπηλά από GitHub (χωρίς Setup wizard) και επανεκκινούν την εφαρμογή.
 LAN `:8080` μένει για πρώτη εγκατάσταση αν μπλοκάρει ο browser.
 **Μόνιμη λύση για browser downloads:** Azure Trusted Signing / Authenticode (σχόλια στο `release.yml`).
 

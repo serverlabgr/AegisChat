@@ -402,11 +402,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 Τρέχουσα έκδοση: <strong>v{appVersion}</strong>
               </p>
               <p className="settings__hint">
-                Τα updates κατεβαίνουν από GitHub Releases (όπως το ToolBox).
-                Αν το GitHub δεν είναι διαθέσιμο, δοκιμάζει LAN (
-                <code>http://192.168.1.235:8080</code>). Διαθέσιμο μόνο στο desktop
-                app. Για πρώτη εγκατάσταση: αν ο browser μπλοκάρει το GitHub .exe,
-                κατέβασε από το LAN.
+                Τα updates κατεβαίνουν σιωπηλά μέσα από το app (χωρίς Setup
+                wizard). Πρώτα GitHub Releases, αν όχι → LAN (
+                <code>http://192.168.1.235:8080</code>). Διαθέσιμο μόνο στο
+                desktop app. Για πρώτη εγκατάσταση: αν ο browser μπλοκάρει το
+                GitHub .exe, κατέβασε από το LAN.
               </p>
               {updateInfo ? <p className="settings__hint">{updateInfo}</p> : null}
               <button
@@ -426,13 +426,28 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                         toast("Δεν βρέθηκε νέο update");
                         return;
                       }
-                      setUpdateInfo(`Διαθέσιμη έκδοση ${res.version} — εγκατάσταση…`);
-                      const ok = await installAppUpdate();
-                      toast(
-                        ok
-                          ? "Το update εγκαταστάθηκε — επανεκκίνηση…"
-                          : "Αποτυχία εγκατάστασης",
+                      setUpdateInfo(
+                        `Διαθέσιμη έκδοση ${res.version} — ενημέρωση… η εφαρμογή θα επανεκκινήσει`,
                       );
+                      const result = await installAppUpdate((p) => {
+                        if (p.phase === "downloading" && typeof p.percent === "number") {
+                          setUpdateInfo(
+                            `Λήψη v${res.version}… ${p.percent}%`,
+                          );
+                        } else if (p.phase === "installing") {
+                          setUpdateInfo(
+                            "Εγκατάσταση… η εφαρμογή θα επανεκκινήσει",
+                          );
+                        } else if (p.phase === "relaunching") {
+                          setUpdateInfo("Επανεκκίνηση…");
+                        }
+                      });
+                      if (result.ok) {
+                        toast("Το update εγκαταστάθηκε — επανεκκίνηση…");
+                      } else {
+                        setUpdateInfo(result.error);
+                        toast(result.error);
+                      }
                     } finally {
                       setUpdateBusy(false);
                     }

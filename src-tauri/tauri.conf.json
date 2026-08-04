@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Aegis",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "identifier": "com.aegis.chat",
   "build": {
     "frontendDist": "../dist",
@@ -72,7 +72,7 @@
         "http://192.168.1.235:8080/latest.json"
       ],
       "windows": {
-        "installMode": "basicUi"
+        "installMode": "quiet"
       }
     }
   }

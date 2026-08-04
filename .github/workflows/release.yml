@@ -58,8 +58,8 @@ jobs:
           releaseBody: |
             ## Updates (ήδη εγκατεστημένοι)
 
-            **Ρυθμίσεις → Updates → Έλεγχος** — κατεβάζει από GitHub Releases (όπως το ToolBox).
-            Δεν χρειάζεται χειροκίνητο download κάθε φορά.
+            **Ρυθμίσεις → Updates → Έλεγχος** — σιωπηλή λήψη + εγκατάσταση + επανεκκίνηση
+            (χωρίς Setup wizard). Πρώτα GitHub, μετά LAN fallback.
 
             ## Πρώτη εγκατάσταση (Windows)
 
