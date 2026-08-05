@@ -8,7 +8,12 @@ import { StoreProvider, useStore } from "./store/store";
 import { applyAccent } from "./lib/color";
 import { tryRestoreSession } from "./lib/session";
 import { isTauri } from "./lib/tauriEnv";
-import { checkForAppUpdate, installAppUpdate } from "./lib/updater";
+import {
+  checkForAppUpdate,
+  consumeUpdateTarget,
+  installAppUpdate,
+} from "./lib/updater";
+import { getAppVersion } from "./lib/appVersion";
 import "./styles/global.css";
 
 type Screen = "boot" | "connect" | "main";
@@ -55,6 +60,14 @@ function AppShell() {
   useEffect(() => {
     applyAccent(settings.accent);
   }, [settings.accent]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void getAppVersion().then((v) => {
+      const updated = consumeUpdateTarget(v);
+      if (updated) toast(`Ενημερώθηκες στο v${updated}`);
+    });
+  }, [toast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,7 +168,7 @@ function AppShell() {
           onInstall={() => {
             setUpdateBusy(true);
             setUpdatePercent(0);
-            setUpdateStatus("Ενημέρωση… η εφαρμογή θα επανεκκινήσει");
+            setUpdateStatus("Λήψη ενημέρωσης…");
             void (async () => {
               const result = await installAppUpdate((p) => {
                 if (p.phase === "downloading") {
@@ -169,8 +182,8 @@ function AppShell() {
                   );
                 } else if (p.phase === "installing") {
                   setUpdatePercent(100);
-                  setUpdateStatus("Εγκατάσταση… η εφαρμογή θα επανεκκινήσει");
-                } else if (p.phase === "relaunching") {
+                  setUpdateStatus("Εγκατάσταση… θα επανεκκινήσει");
+                } else if (p.phase === "waiting") {
                   setUpdateStatus("Επανεκκίνηση…");
                 }
               });

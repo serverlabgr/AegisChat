@@ -402,8 +402,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 Τρέχουσα έκδοση: <strong>v{appVersion}</strong>
               </p>
               <p className="settings__hint">
-                Τα updates κατεβαίνουν σιωπηλά μέσα από το app (χωρίς Setup
-                wizard). Πρώτα GitHub Releases, αν όχι → LAN (
+                Τα updates κατεβαίνουν μέσα από το app (μπάρα προόδου, χωρίς
+                οδηγό). Πρώτα GitHub Releases, αν όχι → LAN (
                 <code>http://192.168.1.235:8080</code>). Διαθέσιμο μόνο στο
                 desktop app. Για πρώτη εγκατάσταση: αν ο browser μπλοκάρει το
                 GitHub .exe, κατέβασε από το LAN.
@@ -438,7 +438,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                           setUpdateInfo(
                             "Εγκατάσταση… η εφαρμογή θα επανεκκινήσει",
                           );
-                        } else if (p.phase === "relaunching") {
+                        } else if (p.phase === "waiting") {
                           setUpdateInfo("Επανεκκίνηση…");
                         }
                       });

@@ -1,7 +1,7 @@
 import { isTauri } from "./tauriEnv";
 
 export type UpdateProgress = {
-  phase: "checking" | "downloading" | "installing" | "relaunching";
+  phase: "checking" | "downloading" | "installing" | "waiting";
   /** 0–100 while downloading; omitted for other phases */
   percent?: number;
 };
@@ -13,6 +13,8 @@ export type UpdateCheckResult =
 export type UpdateInstallResult =
   | { ok: true }
   | { ok: false; error: string };
+
+const UPDATE_TARGET_KEY = "aegis:updateTargetVersion";
 
 function mapUpdateError(err: unknown): string {
   const raw =
@@ -29,7 +31,7 @@ function mapUpdateError(err: unknown): string {
     lower.includes("access is denied") ||
     lower.includes("permission")
   ) {
-    return "Η σιωπηλή ενημέρωση χρειάζεται εγκατάσταση per-user. Κατέβασε το Setup από το LAN ή το GitHub και επανεγκατέστησε.";
+    return "Η ενημέρωση χρειάζεται δικαιώματα. Κατέβασε το Setup από το LAN και επανεγκατέστησε.";
   }
   if (lower.includes("signature") || lower.includes("pubkey")) {
     return "Αποτυχία επαλήθευσης υπογραφής update.";
@@ -38,6 +40,27 @@ function mapUpdateError(err: unknown): string {
     return "Δεν κατέβηκε το update (δίκτυο). Δοκίμασε ξανά ή το LAN mirror.";
   }
   return raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
+}
+
+/** Remember target version so we can toast after a successful NSIS restart. */
+export function markUpdateTarget(version: string): void {
+  try {
+    localStorage.setItem(UPDATE_TARGET_KEY, version);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** If we restarted onto the target version, return it and clear the flag. */
+export function consumeUpdateTarget(currentVersion: string): string | null {
+  try {
+    const target = localStorage.getItem(UPDATE_TARGET_KEY);
+    if (!target || target !== currentVersion) return null;
+    localStorage.removeItem(UPDATE_TARGET_KEY);
+    return target;
+  } catch {
+    return null;
+  }
 }
 
 /** Check GitHub Releases (then LAN) for a newer Aegis build (desktop only). */
@@ -49,14 +72,14 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
     if (!update) return { available: false };
     return { available: true, version: update.version };
   } catch {
-    // Missing pubkey / no release yet / offline — silent in check path.
     return { available: false };
   }
 }
 
 /**
- * Download in-app, quiet-install (no NSIS wizard), then relaunch.
- * On Windows the process may exit during install — relaunch is best-effort.
+ * Download + install via NSIS (passive: progress bar, no wizard).
+ * NSIS receives /P /R and should restart the app — do not call relaunch() here
+ * (race with installer causes close-without-update on Windows).
  */
 export async function installAppUpdate(
   onProgress?: (p: UpdateProgress) => void,
@@ -71,6 +94,8 @@ export async function installAppUpdate(
     if (!update) {
       return { ok: false, error: "Δεν βρέθηκε διαθέσιμο update" };
     }
+
+    markUpdateTarget(update.version);
 
     let downloaded = 0;
     let contentLength = 0;
@@ -93,21 +118,25 @@ export async function installAppUpdate(
       }
     });
 
-    onProgress?.({ phase: "relaunching" });
+    // Usually unreachable: NSIS spawns and the process exits during install.
+    onProgress?.({ phase: "waiting" });
     try {
       const { relaunch } = await import("@tauri-apps/plugin-process");
       await relaunch();
+      return { ok: true };
     } catch {
-      // Windows NSIS quiet install often exits the process before this runs.
-      // If we're still here, tell the caller to ask the user to reopen.
       return {
         ok: false,
         error:
-          "Η ενημέρωση εγκαταστάθηκε αλλά δεν έγινε επανεκκίνηση. Άνοιξε ξανά το Aegis.",
+          "Η εγκατάσταση ολοκληρώθηκε αλλά δεν έγινε επανεκκίνηση. Άνοιξε το Aegis από το μενού Έναρξη.",
       };
     }
-    return { ok: true };
   } catch (err) {
+    try {
+      localStorage.removeItem(UPDATE_TARGET_KEY);
+    } catch {
+      /* ignore */
+    }
     return { ok: false, error: mapUpdateError(err) };
   }
 }

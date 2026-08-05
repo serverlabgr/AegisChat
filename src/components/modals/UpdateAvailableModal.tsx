@@ -29,7 +29,7 @@ export function UpdateAvailableModal({
   return (
     <Modal
       title="Νέα έκδοση διαθέσιμη"
-      subtitle="Σιωπηλή ενημέρωση μέσα από το app — χωρίς οδηγό εγκατάστασης."
+      subtitle="Ενημέρωση μέσα από το app — μικρή μπάρα προόδου, μετά επανεκκίνηση."
       onClose={onSkip}
       width={440}
     >
@@ -39,8 +39,9 @@ export function UpdateAvailableModal({
           <span>Aegis v{version}</span>
         </div>
         <p className="update-modal__body">
-          Θέλεις να κατεβάσεις και να εγκαταστήσεις τώρα; Η ενημέρωση γίνεται
-          στο παρασκήνιο και η εφαρμογή επανεκκινεί αυτόματα — χωρίς Setup wizard.
+          Θέλεις να ενημερωθείς τώρα; Θα εμφανιστεί μικρή μπάρα εγκατάστασης και
+          η εφαρμογή θα επανεκκινήσει μόνη της. Αν δεν ανοίξει σε ~30 δευτερόλεπτα,
+          άνοιξέ την από το μενού Έναρξη.
         </p>
         {busy && typeof progressPercent === "number" ? (
           <div
