@@ -28,10 +28,12 @@ export function ChannelManageModals({
     updateChannel,
     deleteChannel,
     updateGroup,
+    deleteGroup,
     activeGroupId,
     groups,
     homeChannels,
     toast,
+    setActiveGroup,
   } = useStore();
 
   const activeGroup =
@@ -56,6 +58,7 @@ export function ChannelManageModals({
     () => activeGroup?.color ?? ACCENT_OPTIONS[0].value,
   );
   const [busy, setBusy] = useState(false);
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false);
 
   const submitCreate = async () => {
     if (mode.kind !== "create") return;
@@ -109,6 +112,17 @@ export function ChannelManageModals({
     });
     setBusy(false);
     if (ok) onClose();
+  };
+
+  const submitDeleteGroup = async () => {
+    if (!activeGroup) return;
+    setBusy(true);
+    const ok = await deleteGroup(activeGroup.id);
+    setBusy(false);
+    if (ok) {
+      setActiveGroup(HOME_SERVER_ID);
+      onClose();
+    }
   };
 
   if (mode.kind === "create") {
@@ -204,6 +218,16 @@ export function ChannelManageModals({
           <div className="ch-manage__actions">
             <button type="button" className="ch-manage__ghost" onClick={onClose}>
               Άκυρο
+            </button>
+            <button
+              type="button"
+              className="ch-manage__danger ch-manage__danger--outline"
+              onClick={() =>
+                onSwitch({ kind: "delete", channel: mode.channel })
+              }
+            >
+              <Trash2 size={14} />
+              Διαγραφή
             </button>
             <button
               type="button"
@@ -310,6 +334,42 @@ export function ChannelManageModals({
               >
                 Αποθήκευση
               </button>
+            </div>
+            <div className="ch-manage__danger-zone">
+              <span>Ζώνη κινδύνου</span>
+              <p>
+                Η διαγραφή server αφαιρεί όλα τα κανάλια και τα μηνύματά του.
+                Μόνο ο δημιουργός ή Admin.
+              </p>
+              {confirmDeleteGroup ? (
+                <div className="ch-manage__confirm-row">
+                  <button
+                    type="button"
+                    className="ch-manage__danger"
+                    disabled={busy}
+                    onClick={() => void submitDeleteGroup()}
+                  >
+                    <Trash2 size={14} />
+                    Ναι, διαγραφή «{activeGroup?.name ?? "server"}»
+                  </button>
+                  <button
+                    type="button"
+                    className="ch-manage__ghost"
+                    onClick={() => setConfirmDeleteGroup(false)}
+                  >
+                    Άκυρο
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="ch-manage__danger ch-manage__danger--outline"
+                  onClick={() => setConfirmDeleteGroup(true)}
+                >
+                  <Trash2 size={14} />
+                  Διαγραφή server
+                </button>
+              )}
             </div>
           </>
         )}

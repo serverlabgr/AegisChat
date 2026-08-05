@@ -40,4 +40,7 @@ export const config = {
    * 0 = no artificial cap. Default 2GB (aligned with Windows client).
    */
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 2_147_483_648),
+  /** Pterodactyl panel (optional) — Client API key for start/stop game servers */
+  pterodactylUrl: process.env.PTERODACTYL_URL?.trim() || undefined,
+  pterodactylClientKey: process.env.PTERODACTYL_CLIENT_KEY?.trim() || undefined,
 };

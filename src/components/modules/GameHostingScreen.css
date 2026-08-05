@@ -68,6 +68,77 @@
   background: var(--danger-soft);
 }
 
+.game-card__settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.game-card__settings:hover {
+  color: var(--accent-text);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.game-card__notes {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.chip--link {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+
+.game-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.game-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.game-form__field > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.game-form__field input,
+.game-form__field textarea {
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+}
+
+.game-form__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
 .game-card__power {
   display: flex;
   align-items: center;

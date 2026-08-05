@@ -9,40 +9,58 @@ import {
   Check,
   Trash2,
   BookOpen,
+  Settings,
 } from "lucide-react";
 import type { ApiKey, Bot as BotType, Webhook as WebhookType } from "../../data/modules";
 import { useStore } from "../../store/store";
-import { usePersisted } from "../../lib/persist";
 import { copyText } from "../../lib/clipboard";
 import { api } from "../../lib/api";
 import { loadServerUrl } from "../../lib/serverConfig";
+import { Modal } from "../common/Modal";
 import "./module.css";
 import "./DevPortalScreen.css";
 
 type Tab = "keys" | "bots" | "webhooks";
 
-const BOT_ICONS = ["🤖", "🎲", "📣", "🧠", "⚡"];
+const BOT_ICONS = ["🤖", "🎲", "📣", "🧠", "⚡", "🛠️", "🎵", "📊"];
+
+const emptyBotForm = () => ({
+  name: "",
+  desc: "",
+  icon: BOT_ICONS[0],
+  tokenId: "",
+  channelId: "",
+});
 
 export function DevPortalScreen() {
-  const { toast, onlineMode, homeChannels } = useStore();
+  const { toast, onlineMode, homeChannels, groups } = useStore();
   const [tab, setTab] = useState<Tab>("keys");
   const [copied, setCopied] = useState<string | null>(null);
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [bots, setBots] = usePersisted<BotType[]>("bots", []);
+  const [bots, setBots] = useState<BotType[]>([]);
   const [webhooks, setWebhooks] = useState<WebhookType[]>([]);
   const [keyFormOpen, setKeyFormOpen] = useState(false);
   const [keyLabel, setKeyLabel] = useState("");
   const [botFormOpen, setBotFormOpen] = useState(false);
-  const [botName, setBotName] = useState("");
+  const [botForm, setBotForm] = useState(emptyBotForm);
+  const [editBot, setEditBot] = useState<BotType | null>(null);
   const [hookFormOpen, setHookFormOpen] = useState(false);
   const [hookName, setHookName] = useState("");
   const [hookChannel, setHookChannel] = useState("general");
 
+  const allTextChannels = [
+    ...homeChannels.filter((c) => c.type === "text"),
+    ...groups.flatMap((g) =>
+      (g.channels ?? []).filter((c) => c.type === "text"),
+    ),
+  ];
+
   const refresh = async () => {
     if (!onlineMode) return;
     try {
-      const [tok, hooks] = await Promise.all([
+      const [tok, botRes, hooks] = await Promise.all([
         api<{ tokens: ApiKey[] }>("/tokens"),
+        api<{ bots: BotType[] }>("/bots"),
         api<{
           webhooks: {
             id: string;
@@ -53,6 +71,7 @@ export function DevPortalScreen() {
         }>("/tokens/webhooks"),
       ]);
       setKeys(tok.tokens);
+      setBots(botRes.bots);
       const base = loadServerUrl().replace(/\/$/, "");
       setWebhooks(
         hooks.webhooks.map((w) => ({
@@ -116,30 +135,84 @@ export function DevPortalScreen() {
   };
 
   const createBot = () => {
-    if (!botName.trim()) return;
-    setBots((prev) => [
-      ...prev,
-      {
-        id: `b-${Date.now()}`,
-        name: botName.trim(),
-        desc: "Τοπικό bot label — χρησιμοποίησε API key για πραγματικά hooks",
-        online: false,
-        icon: BOT_ICONS[Math.floor(Math.random() * BOT_ICONS.length)],
-      },
-    ]);
-    setBotName("");
-    setBotFormOpen(false);
-    toast("Το bot label δημιουργήθηκε");
+    if (!botForm.name.trim()) return;
+    if (!onlineMode) {
+      toast("Χρειάζεται online");
+      return;
+    }
+    void (async () => {
+      try {
+        const { bot } = await api<{ bot: BotType }>("/bots", {
+          method: "POST",
+          body: {
+            name: botForm.name.trim(),
+            description: botForm.desc.trim(),
+            icon: botForm.icon,
+            tokenId: botForm.tokenId || undefined,
+            channelId: botForm.channelId || undefined,
+          },
+        });
+        setBots((prev) => [bot, ...prev]);
+        setBotForm(emptyBotForm());
+        setBotFormOpen(false);
+        toast("Το bot δημιουργήθηκε");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία");
+      }
+    })();
+  };
+
+  const saveBot = () => {
+    if (!editBot || !editBot.name.trim()) return;
+    if (!onlineMode) return;
+    void (async () => {
+      try {
+        const { bot } = await api<{ bot: BotType }>(`/bots/${editBot.id}`, {
+          method: "PATCH",
+          body: {
+            name: editBot.name.trim(),
+            description: editBot.desc,
+            icon: editBot.icon,
+            tokenId: editBot.tokenId || null,
+            channelId: editBot.channelId || null,
+            enabled: editBot.online,
+          },
+        });
+        setBots((prev) => prev.map((b) => (b.id === bot.id ? bot : b)));
+        setEditBot(null);
+        toast("Οι ρυθμίσεις bot αποθηκεύτηκαν");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία");
+      }
+    })();
   };
 
   const toggleBot = (id: string) => {
-    setBots((prev) =>
-      prev.map((b) => {
-        if (b.id !== id) return b;
-        toast(b.online ? `Το ${b.name} σταμάτησε` : `Το ${b.name} ξεκίνησε`);
-        return { ...b, online: !b.online };
-      }),
-    );
+    const b = bots.find((x) => x.id === id);
+    if (!b || !onlineMode) return;
+    void (async () => {
+      try {
+        const { bot } = await api<{ bot: BotType }>(`/bots/${id}`, {
+          method: "PATCH",
+          body: { enabled: !b.online },
+        });
+        setBots((prev) => prev.map((x) => (x.id === id ? bot : x)));
+        toast(bot.online ? `Το ${bot.name} ενεργοποιήθηκε` : `Το ${bot.name} απενεργοποιήθηκε`);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία");
+      }
+    })();
+  };
+
+  const deleteBot = (id: string) => {
+    if (!onlineMode) return;
+    void api(`/bots/${id}`, { method: "DELETE" })
+      .then(() => {
+        setBots((prev) => prev.filter((b) => b.id !== id));
+        if (editBot?.id === id) setEditBot(null);
+        toast("Το bot διαγράφηκε");
+      })
+      .catch((err) => toast(err instanceof Error ? err.message : "Αποτυχία"));
   };
 
   const createWebhook = () => {
@@ -192,7 +265,82 @@ export function DevPortalScreen() {
       .catch((err) => toast(err instanceof Error ? err.message : "Αποτυχία"));
   };
 
-  const textChannels = homeChannels.filter((c) => c.type === "text");
+  const channelLabel = (id?: string) => {
+    if (!id) return "—";
+    const ch = allTextChannels.find((c) => c.id === id);
+    return ch ? `#${ch.name}` : id;
+  };
+
+  const botFormFields = (
+    form: typeof botForm,
+    setForm: (v: typeof botForm) => void,
+    idPrefix: string,
+  ) => (
+    <>
+      <label className="dev-form__field">
+        <span>Όνομα</span>
+        <input
+          autoFocus
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="MyBot"
+          maxLength={64}
+        />
+      </label>
+      <label className="dev-form__field">
+        <span>Περιγραφή</span>
+        <input
+          value={form.desc}
+          onChange={(e) => setForm({ ...form, desc: e.target.value })}
+          placeholder="Τι κάνει το bot…"
+          maxLength={280}
+        />
+      </label>
+      <div className="dev-form__field">
+        <span>Εικονίδιο</span>
+        <div className="dev-form__icons">
+          {BOT_ICONS.map((ic) => (
+            <button
+              key={ic}
+              type="button"
+              className={`dev-form__icon${form.icon === ic ? " dev-form__icon--on" : ""}`}
+              onClick={() => setForm({ ...form, icon: ic })}
+            >
+              {ic}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="dev-form__field">
+        <span>API key (προαιρετικό)</span>
+        <select
+          value={form.tokenId}
+          onChange={(e) => setForm({ ...form, tokenId: e.target.value })}
+        >
+          <option value="">— χωρίς σύνδεση —</option>
+          {keys.map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="dev-form__field">
+        <span>Προεπιλεγμένο κανάλι</span>
+        <select
+          value={form.channelId}
+          onChange={(e) => setForm({ ...form, channelId: e.target.value })}
+        >
+          <option value="">— κανένα —</option>
+          {allTextChannels.map((c) => (
+            <option key={`${idPrefix}-${c.id}`} value={c.id}>
+              #{c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
+  );
 
   return (
     <div className="module">
@@ -201,7 +349,7 @@ export function DevPortalScreen() {
           <Code2 size={18} />
         </span>
         <span className="module__title">Developer Portal</span>
-        <span className="module__sub">API tokens & webhooks</span>
+        <span className="module__sub">API tokens, bots & webhooks</span>
         <div className="module__header-actions">
           <button
             className="btn btn--sm btn--ghost"
@@ -314,24 +462,26 @@ export function DevPortalScreen() {
         {tab === "bots" ? (
           <>
             {botFormOpen ? (
-              <div className="module__inline-form module__inline-form--flush">
-                <input
-                  autoFocus
-                  placeholder="Όνομα bot"
-                  value={botName}
-                  onChange={(e) => setBotName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") createBot();
-                    if (e.key === "Escape") setBotFormOpen(false);
-                  }}
-                />
-                <button
-                  className="btn btn--primary btn--sm"
-                  onClick={createBot}
-                  disabled={!botName.trim()}
-                >
-                  Δημιουργία
-                </button>
+              <div className="card dev-form">
+                {botFormFields(botForm, setBotForm, "new")}
+                <div className="dev-form__actions">
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={createBot}
+                    disabled={!botForm.name.trim()}
+                  >
+                    Δημιουργία
+                  </button>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => {
+                      setBotFormOpen(false);
+                      setBotForm(emptyBotForm());
+                    }}
+                  >
+                    Άκυρο
+                  </button>
+                </div>
               </div>
             ) : null}
             <div className="grid grid--cards">
@@ -345,23 +495,45 @@ export function DevPortalScreen() {
                         className={`dot dot--${b.online ? "online" : "offline"}`}
                       />
                     </span>
-                    <span className="dev-bot__desc">{b.desc}</span>
+                    <span className="dev-bot__desc">{b.desc || "—"}</span>
+                    <span className="dev-bot__meta">
+                      {channelLabel(b.channelId)}
+                      {b.created ? ` · ${b.created}` : ""}
+                    </span>
                   </div>
-                  <button
-                    className={`btn btn--sm ${b.online ? "btn--danger" : "btn--primary"}`}
-                    onClick={() => toggleBot(b.id)}
-                  >
-                    {b.online ? "Stop" : "Start"}
-                  </button>
+                  <div className="dev-bot__actions">
+                    <button
+                      className="btn btn--sm btn--ghost"
+                      title="Ρυθμίσεις"
+                      onClick={() => setEditBot({ ...b })}
+                    >
+                      <Settings size={14} />
+                    </button>
+                    <button
+                      className="btn btn--sm btn--danger"
+                      title="Διαγραφή"
+                      onClick={() => deleteBot(b.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <button
+                      className={`btn btn--sm ${b.online ? "btn--danger" : "btn--primary"}`}
+                      onClick={() => toggleBot(b.id)}
+                    >
+                      {b.online ? "Off" : "On"}
+                    </button>
+                  </div>
                 </div>
               ))}
-              <button
-                className="card dev-bot dev-bot--new"
-                onClick={() => setBotFormOpen(true)}
-              >
-                <Plus size={20} />
-                <span>Νέο bot</span>
-              </button>
+              {!botFormOpen ? (
+                <button
+                  className="card dev-bot dev-bot--new"
+                  onClick={() => setBotFormOpen(true)}
+                >
+                  <Plus size={20} />
+                  <span>Νέο bot</span>
+                </button>
+              ) : null}
             </div>
           </>
         ) : null}
@@ -380,7 +552,7 @@ export function DevPortalScreen() {
                   value={hookChannel}
                   onChange={(e) => setHookChannel(e.target.value)}
                 >
-                  {textChannels.map((c) => (
+                  {allTextChannels.map((c) => (
                     <option key={c.id} value={c.id}>
                       #{c.name}
                     </option>
@@ -432,6 +604,71 @@ export function DevPortalScreen() {
           </div>
         ) : null}
       </div>
+
+      {editBot ? (
+        <Modal
+          title="Ρυθμίσεις bot"
+          subtitle={editBot.name}
+          onClose={() => setEditBot(null)}
+          width={440}
+        >
+          <div className="dev-form">
+            {botFormFields(
+              {
+                name: editBot.name,
+                desc: editBot.desc,
+                icon: editBot.icon,
+                tokenId: editBot.tokenId ?? "",
+                channelId: editBot.channelId ?? "",
+              },
+              (v) =>
+                setEditBot({
+                  ...editBot,
+                  name: v.name,
+                  desc: v.desc,
+                  icon: v.icon,
+                  tokenId: v.tokenId || undefined,
+                  channelId: v.channelId || undefined,
+                }),
+              editBot.id,
+            )}
+            <label className="dev-form__field dev-form__field--row">
+              <span>Ενεργό</span>
+              <input
+                type="checkbox"
+                checked={editBot.online}
+                onChange={(e) =>
+                  setEditBot({ ...editBot, online: e.target.checked })
+                }
+              />
+            </label>
+            <div className="dev-form__actions">
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                onClick={() => deleteBot(editBot.id)}
+              >
+                <Trash2 size={14} /> Διαγραφή
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => setEditBot(null)}
+              >
+                Άκυρο
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={saveBot}
+                disabled={!editBot.name.trim()}
+              >
+                Αποθήκευση
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

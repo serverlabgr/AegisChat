@@ -44,6 +44,9 @@ services:
       # 2GB default (aligned with Windows client hard-block)
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-2147483648}
       RUN_SEED: ${RUN_SEED:-0}
+      # Optional: Pterodactyl panel — Client API key for game start/stop
+      PTERODACTYL_URL: ${PTERODACTYL_URL:-}
+      PTERODACTYL_CLIENT_KEY: ${PTERODACTYL_CLIENT_KEY:-}
     volumes:
       - aegis_uploads:/data/uploads
     networks:

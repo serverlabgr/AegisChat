@@ -347,6 +347,28 @@ friendRoutes.patch("/groups/:id", async (c) => {
   });
 });
 
+friendRoutes.delete("/groups/:id", async (c) => {
+  const id = c.req.param("id");
+  const groupId = resolveGroupId(id);
+  if (groupId == null) {
+    return c.json({ error: "Δεν διαγράφεται το home server" }, 400);
+  }
+  const me = c.get("userId");
+  const g = await query(`SELECT created_by FROM groups WHERE id = $1`, [groupId]);
+  if (!g.rows[0]) return c.json({ error: "Not found" }, 404);
+  if (g.rows[0].created_by !== me) {
+    const admin = await query(`SELECT role FROM users WHERE id = $1`, [me]);
+    if (admin.rows[0]?.role !== "Admin") {
+      return c.json({ error: "Μόνο ο δημιουργός ή Admin" }, 403);
+    }
+  }
+  await query(`DELETE FROM channels WHERE group_id = $1`, [groupId]);
+  await query(`DELETE FROM group_members WHERE group_id = $1`, [groupId]);
+  await query(`DELETE FROM groups WHERE id = $1`, [groupId]);
+  broadcast({ type: "channels_changed", groupId });
+  return c.json({ ok: true });
+});
+
 friendRoutes.post("/groups/:groupId/channels", async (c) => {
   const rawGroupId = c.req.param("groupId");
   const groupId = resolveGroupId(rawGroupId);

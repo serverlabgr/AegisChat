@@ -12,6 +12,8 @@ import {
   Volume2,
   Plus,
   MessagesSquare,
+  Trash2,
+  Pencil,
 } from "lucide-react";
 import { HOME_SERVER_ID, PERSONAL_SPACE_ID } from "../../data/modules";
 import { useStore } from "../../store/store";
@@ -21,6 +23,7 @@ import {
   ChannelManageModals,
   type ChannelModalMode,
 } from "../modals/ChannelManageModals";
+import type { Channel } from "../../data/mock";
 import "./SystemNav.css";
 
 interface SystemNavProps {
@@ -66,6 +69,16 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
   const [channelModal, setChannelModal] = useState<ChannelModalMode | null>(
     null,
   );
+  const [channelMenu, setChannelMenu] = useState<{
+    channel: Channel;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const openChannelMenu = (e: React.MouseEvent, channel: Channel) => {
+    e.preventDefault();
+    setChannelMenu({ channel, x: e.clientX, y: e.clientY });
+  };
 
   const activeGroup = useMemo(() => {
     if (activeGroupId === HOME_SERVER_ID) {
@@ -242,10 +255,7 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                         onClick={() =>
                           setActiveView({ type: "channel", id: channel.id })
                         }
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setChannelModal({ kind: "edit", channel });
-                        }}
+                        onContextMenu={(e) => openChannelMenu(e, channel)}
                       >
                         <Hash size={15} className="sysnav__glyph" />
                         <span className="sysnav__name">{channel.name}</span>
@@ -302,10 +312,7 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                         onClick={() =>
                           joined ? leaveVoice() : joinVoice(channel.id)
                         }
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setChannelModal({ kind: "edit", channel });
-                        }}
+                        onContextMenu={(e) => openChannelMenu(e, channel)}
                       >
                         {joined ? (
                           <Volume2
@@ -477,6 +484,49 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
           onClose={() => setChannelModal(null)}
           onSwitch={setChannelModal}
         />
+      ) : null}
+
+      {channelMenu ? (
+        <>
+          <button
+            type="button"
+            className="sysnav__ctx-backdrop"
+            aria-label="Κλείσιμο μενού"
+            onClick={() => setChannelMenu(null)}
+          />
+          <div
+            className="sysnav__ctx-menu"
+            style={{ top: channelMenu.y, left: channelMenu.x }}
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setChannelModal({ kind: "edit", channel: channelMenu.channel });
+                setChannelMenu(null);
+              }}
+            >
+              <Pencil size={14} />
+              Επεξεργασία
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="sysnav__ctx-menu--danger"
+              onClick={() => {
+                setChannelModal({
+                  kind: "delete",
+                  channel: channelMenu.channel,
+                });
+                setChannelMenu(null);
+              }}
+            >
+              <Trash2 size={14} />
+              Διαγραφή
+            </button>
+          </div>
+        </>
       ) : null}
     </aside>
   );

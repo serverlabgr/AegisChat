@@ -20,32 +20,21 @@ import "./RadioScreen.css";
 
 type RadioTab = "live" | "spotify";
 
-type BrowseStation = {
-  id: string;
-  name: string;
-  genre: string;
-  streamUrl: string;
-  codec: string;
-  bitrate: number;
-};
-
 export function RadioScreen() {
   const { toast, onlineMode, memberIds, users } = useStore();
   const [tab, setTab] = useState<RadioTab>("live");
-  const [stationId, setStationId] = useState("skai");
-  const [customUrl, setCustomUrl] = usePersisted("radio-custom-url", "");
+  const [stationId, setStationId] = useState(radioStations[0]?.id ?? "notesfm");
   const [spotifyInput, setSpotifyInput] = usePersisted("radio-spotify-url", "");
   const [spotifyEmbed, setSpotifyEmbed] = useState<SpotifyEmbed | null>(null);
-  const [browse, setBrowse] = useState<BrowseStation[]>([]);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = usePersisted("radio-volume", 70);
   const [title, setTitle] = useState("Σίγαση");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const applyingRemote = useRef(false);
 
-  const station = radioStations.find((s) => s.id === stationId) ?? radioStations[0];
-  const streamUrl =
-    stationId === "custom" ? customUrl.trim() : (station.streamUrl ?? "");
+  const station =
+    radioStations.find((s) => s.id === stationId) ?? radioStations[0];
+  const streamUrl = station?.streamUrl ?? "";
 
   const listeners = memberIds
     .map((id) => users[id])
@@ -58,7 +47,7 @@ export function RadioScreen() {
       method: "POST",
       body: {
         trackUrl: patch.trackUrl ?? streamUrl,
-        title: patch.title ?? (stationId === "custom" ? "Custom" : station.name),
+        title: patch.title ?? station.name,
         playing: patch.playing ?? playing,
         position: patch.position ?? audioRef.current?.currentTime ?? 0,
         source: patch.source ?? "stream",
@@ -106,29 +95,19 @@ export function RadioScreen() {
     setTitle(state.title || "Live");
     setPlaying(state.playing);
     const audio = audioRef.current;
-    if (audio) {
-      if (state.trackUrl && audio.src !== state.trackUrl) {
+    if (audio && state.trackUrl) {
+      if (!audio.src.endsWith(state.trackUrl)) {
         audio.src = state.trackUrl;
+        audio.load();
       }
       if (state.playing) {
         void audio.play().catch(() => undefined);
       } else {
         audio.pause();
       }
-      if (Math.abs((audio.currentTime || 0) - state.position) > 2) {
-        try {
-          audio.currentTime = state.position;
-        } catch {
-          /* streams may not seek */
-        }
-      }
     }
     const match = radioStations.find((s) => s.streamUrl === state.trackUrl);
     if (match) setStationId(match.id);
-    else if (state.trackUrl) {
-      setStationId("custom");
-      setCustomUrl(state.trackUrl);
-    }
     queueMicrotask(() => {
       applyingRemote.current = false;
     });
@@ -137,6 +116,7 @@ export function RadioScreen() {
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "none";
+    audio.crossOrigin = "anonymous";
     audioRef.current = audio;
     return () => {
       audio.pause();
@@ -165,24 +145,22 @@ export function RadioScreen() {
     void api<{ state: RadioState }>("/radio/state")
       .then((r) => applyState(r.state))
       .catch(() => undefined);
-    void api<{ stations: BrowseStation[] }>("/radio/stations")
-      .then((r) => setBrowse(r.stations ?? []))
-      .catch(() => undefined);
   }, [onlineMode]);
 
-  const playStream = (url: string, label: string, id?: string) => {
+  const playStream = (url: string, label: string, id: string) => {
     if (!url) {
       toast("Δεν υπάρχει URL ροής");
       return;
     }
     setTab("live");
     setSpotifyEmbed(null);
-    if (id) setStationId(id);
+    setStationId(id);
     const audio = audioRef.current;
     if (audio) {
       audio.src = url;
+      audio.load();
       void audio.play().catch(() =>
-        toast("Δεν παίζει η ροή — δοκίμασε άλλο σταθμό"),
+        toast("Δεν παίζει η ροή — δοκίμασε ξανά σε λίγο"),
       );
     }
     setPlaying(true);
@@ -194,31 +172,32 @@ export function RadioScreen() {
       position: 0,
       source: "stream",
     });
-    toast(`Live: ${label}`);
   };
 
   const selectStation = (id: string) => {
     const s = radioStations.find((x) => x.id === id);
-    const url = id === "custom" ? customUrl.trim() : (s?.streamUrl ?? "");
-    if (id === "custom" && !url) {
-      toast("Βάλε URL ροής");
+    if (!s?.streamUrl) {
+      toast("Ο σταθμός δεν έχει ροή");
       return;
     }
-    playStream(url, id === "custom" ? "Custom" : (s?.name ?? "Radio"), id);
+    playStream(s.streamUrl, s.name, id);
   };
 
   const togglePlay = () => {
     if (tab === "spotify") {
-      toast("Για Spotify πάτα play στο embed ή άνοιξε το Spotify app");
+      toast("Για Spotify πάτα play στο embed");
       return;
     }
     const audio = audioRef.current;
     if (!audio) return;
     if (!streamUrl) {
-      toast("Διάλεξε σταθμό ή βάλε URL");
+      toast("Διάλεξε σταθμό");
       return;
     }
-    if (!audio.src) audio.src = streamUrl;
+    if (!audio.src) {
+      audio.src = streamUrl;
+      audio.load();
+    }
     const next = !playing;
     if (next) void audio.play().catch(() => toast("Αποτυχία playback"));
     else audio.pause();
@@ -241,15 +220,10 @@ export function RadioScreen() {
     toast("Spotify μοιράστηκε στην παρέα");
   };
 
-  const displayName =
-    tab === "spotify"
-      ? title
-      : stationId === "custom"
-        ? "Custom stream"
-        : station.name;
+  const displayName = tab === "spotify" ? title : station.name;
   const displayGenre =
     tab === "spotify"
-      ? "Spotify — κάθε μέλος παίζει τοπικά (Premium για full tracks)"
+      ? "Spotify — τοπικό playback (Premium για full tracks)"
       : station.genre;
   const accentColor = tab === "spotify" ? "#1db954" : station.color;
 
@@ -259,8 +233,8 @@ export function RadioScreen() {
         <span className="module__header-icon">
           <Radio size={18} />
         </span>
-        <span className="module__title">Ελληνικό Radio</span>
-        <span className="module__sub">live + Spotify στην παρέα</span>
+        <span className="module__title">Radio παρέας</span>
+        <span className="module__sub">6 σταθμοί · live sync</span>
       </header>
 
       <div className="radio__tabs">
@@ -269,7 +243,7 @@ export function RadioScreen() {
           className={`radio__tab${tab === "live" ? " radio__tab--active" : ""}`}
           onClick={() => setTab("live")}
         >
-          <Radio size={14} /> Live GR
+          <Radio size={14} /> Live
         </button>
         <button
           type="button"
@@ -384,9 +358,7 @@ export function RadioScreen() {
         {tab === "spotify" ? (
           <div className="radio__spotify-panel">
             <p className="settings__hint">
-              Βάλε link playlist/album/track από Spotify. Η παρέα βλέπει το ίδιο
-              embed — το playback γίνεται τοπικά (απαιτείται Spotify account· Premium
-              για on-demand tracks).
+              Βάλε link playlist/album/track από Spotify για να το δει η παρέα.
             </p>
             <label className="settings__field">
               <span>Spotify URL</span>
@@ -411,91 +383,40 @@ export function RadioScreen() {
           </div>
         ) : (
           <>
-            <div className="module__section-title">Δημοφιλείς ελληνικοί σταθμοί</div>
+            <div className="module__section-title">Σταθμοί</div>
             <div className="grid grid--cards">
-              {radioStations
-                .filter((s) => s.id !== "custom")
-                .map((s) => {
-                  const active = s.id === stationId;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`card card--hover radio-station${active ? " radio-station--active" : ""}`}
-                      onClick={() => selectStation(s.id)}
+              {radioStations.map((s) => {
+                const active = s.id === stationId;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`card card--hover radio-station${active ? " radio-station--active" : ""}`}
+                    onClick={() => selectStation(s.id)}
+                  >
+                    <span
+                      className="radio-station__art"
+                      style={{
+                        background: `linear-gradient(145deg, ${s.color}, #7c8cff)`,
+                      }}
                     >
-                      <span
-                        className="radio-station__art"
-                        style={{
-                          background: `linear-gradient(145deg, ${s.color}, #7c8cff)`,
-                        }}
-                      >
-                        {active && playing ? (
-                          <Pause size={18} />
-                        ) : (
-                          <Play size={18} />
-                        )}
-                      </span>
-                      <div className="radio-station__info">
-                        <span className="radio-station__name">{s.name}</span>
-                        <span className="radio-station__genre">{s.genre}</span>
-                      </div>
-                      {s.live ? (
-                        <span className="radio-station__live">LIVE</span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-            </div>
-
-            {browse.length > 0 ? (
-              <>
-                <div className="module__section-title">Περισσότεροι σταθμοί (Ελλάδα)</div>
-                <div className="grid grid--cards radio__browse">
-                  {browse.slice(0, 24).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className="card card--hover radio-station"
-                      onClick={() =>
-                        playStream(s.streamUrl, s.name, undefined)
-                      }
-                    >
-                      <span
-                        className="radio-station__art"
-                        style={{
-                          background: "linear-gradient(145deg, #5cc8ff, #7c8cff)",
-                        }}
-                      >
+                      {active && playing ? (
+                        <Pause size={18} />
+                      ) : (
                         <Play size={18} />
-                      </span>
-                      <div className="radio-station__info">
-                        <span className="radio-station__name">{s.name}</span>
-                        <span className="radio-station__genre">
-                          {s.genre || "Greece"} · {s.codec}
-                          {s.bitrate ? ` ${s.bitrate}k` : ""}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            <label
-              className="settings__field"
-              style={{ marginTop: 16, display: "block" }}
-            >
-              <span>Custom stream URL</span>
-              <input
-                value={customUrl}
-                onChange={(e) => setCustomUrl(e.target.value)}
-                onBlur={() => {
-                  if (customUrl.trim()) selectStation("custom");
-                }}
-                placeholder="https://…/stream.mp3"
-              />
-            </label>
+                      )}
+                    </span>
+                    <div className="radio-station__info">
+                      <span className="radio-station__name">{s.name}</span>
+                      <span className="radio-station__genre">{s.genre}</span>
+                    </div>
+                    {s.live ? (
+                      <span className="radio-station__live">LIVE</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </>
         )}
       </div>

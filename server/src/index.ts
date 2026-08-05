@@ -13,6 +13,7 @@ import { mediaRoutes } from "./routes/media.js";
 import { radioRoutes } from "./routes/radio.js";
 import { gameRoutes } from "./routes/games.js";
 import { tokenRoutes, hookRoutes } from "./routes/tokens.js";
+import { botRoutes } from "./routes/bots.js";
 import { attachWebSocket } from "./ws.js";
 
 const app = new Hono();
@@ -88,6 +89,7 @@ app.route("/media", mediaRoutes);
 app.route("/radio", radioRoutes);
 app.route("/games", gameRoutes);
 app.route("/tokens", tokenRoutes);
+app.route("/bots", botRoutes);
 app.route("/hooks", hookRoutes);
 
 const server = serve(

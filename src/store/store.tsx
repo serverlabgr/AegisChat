@@ -166,6 +166,7 @@ interface StoreValue {
     groupId: string,
     patch: { name?: string; color?: string },
   ) => Promise<boolean>;
+  deleteGroup: (groupId: string) => Promise<boolean>;
   refreshChannels: () => Promise<void>;
   inviteToGame: (userId: string) => void;
   hydrateFromServer: (payload: BootstrapPayload) => void;
@@ -1396,6 +1397,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [setGroups, toast],
   );
 
+  const deleteGroup = useCallback(
+    async (groupId: string) => {
+      if (groupId === HOME_SERVER_ID) {
+        toast("Το home server δεν διαγράφεται");
+        return false;
+      }
+      if (!onlineRef.current) {
+        toast("Χρειάζεται σύνδεση");
+        return false;
+      }
+      try {
+        await api(`/friends/groups/${encodeURIComponent(groupId)}`, {
+          method: "DELETE",
+        });
+        setGroups((prev) => prev.filter((g) => g.id !== groupId));
+        if (activeGroupId === groupId) {
+          setActiveGroup(HOME_SERVER_ID);
+        }
+        toast("Ο server διαγράφηκε");
+        return true;
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Αποτυχία διαγραφής");
+        return false;
+      }
+    },
+    [setGroups, toast, activeGroupId, setActiveGroup],
+  );
+
   const inviteToGame = useCallback(
     (userId: string) => {
       const plain =
@@ -1731,6 +1760,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateChannel,
       deleteChannel,
       updateGroup,
+      deleteGroup,
       refreshChannels,
       inviteToGame,
       hydrateFromServer,
@@ -1792,6 +1822,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateChannel,
       deleteChannel,
       updateGroup,
+      deleteGroup,
       refreshChannels,
       inviteToGame,
       hydrateFromServer,
