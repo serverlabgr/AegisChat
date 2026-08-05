@@ -19,6 +19,11 @@ import { broadcast, sendToUser } from "../ws.js";
 export const friendRoutes = new Hono<AuthVars>();
 friendRoutes.use("*", requireAuth);
 
+async function requireAdmin(userId: string): Promise<boolean> {
+  const { rows } = await query(`SELECT role FROM users WHERE id = $1`, [userId]);
+  return String(rows[0]?.role ?? "").toLowerCase() === "admin";
+}
+
 friendRoutes.get("/", async (c) => {
   const userId = c.get("userId");
   const { rows } = await query(
@@ -152,6 +157,9 @@ friendRoutes.delete("/requests/:id", async (c) => {
 });
 
 friendRoutes.get("/invites", async (c) => {
+  if (!(await requireAdmin(c.get("userId")))) {
+    return c.json({ error: "Μόνο Admin" }, 403);
+  }
   const { rows } = await query(
     `SELECT id, code, max_uses, uses, expires_at, created_at
      FROM invites ORDER BY created_at DESC LIMIT 50`,
@@ -168,6 +176,9 @@ friendRoutes.get("/invites", async (c) => {
 });
 
 friendRoutes.post("/invites", async (c) => {
+  if (!(await requireAdmin(c.get("userId")))) {
+    return c.json({ error: "Μόνο Admin" }, 403);
+  }
   const code = randomInviteCode();
   const expires = new Date();
   expires.setDate(expires.getDate() + 7);

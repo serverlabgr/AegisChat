@@ -26,6 +26,35 @@ crontab -e
 # 15 3 * * * /opt/aegis-chat/deploy/backup.sh >> /home/craccchat/aegis-backup.log 2>&1
 ```
 
+### Restore (από backup)
+
+```bash
+cd /opt/aegis-chat/deploy
+# διάλεξε dump — παράδειγμα:
+DUMP=backups/aegis-YYYYMMDDTHHMMSSZ.sql.gz
+# σταμάτα API για καθαρό restore
+docker compose -f docker-compose.lan.yml stop api
+# restore SQL
+gunzip -c "$DUMP" | docker compose -f docker-compose.lan.yml exec -T db \
+  psql -U "${POSTGRES_USER:-aegis}" "${POSTGRES_DB:-aegis}"
+# (προαιρετικά) uploads
+# docker compose -f docker-compose.lan.yml start api
+# μετά: docker run --rm --volumes-from $(docker compose -f docker-compose.lan.yml ps -q api) \
+#   -v "$PWD/backups:/backup" alpine tar -xzf /backup/aegis-uploads-….tar.gz -C /data
+docker compose -f docker-compose.lan.yml start api
+curl http://127.0.0.1:3001/health
+```
+
+Αντίγραψε τα `backups/` και εκτός VM (USB / άλλο PC).
+
+### Go-live checklist (παρέα LAN)
+
+1. Άλλαξε password του `admin` (seed default είναι `changeme123`)
+2. Απενεργοποίησε / μην μοιράζεις το seed invite· φτιάξε νέο ως Admin
+3. Firewall: **μην** εκθέσεις `:3001` / `:8080` στο internet (μόνο LAN)
+4. Cron `backup.sh` + αντίγραφο εκτός VM
+5. (AI Chat) στο `.env`: `OLLAMA_URL=http://<host>:11434`, `OLLAMA_MODEL=…` · Ollama να ακούει στο LAN · `docker compose … up -d --build api`
+
 Ενημέρωση API χωρίς git στο VM (από το PC):
 
 ```powershell

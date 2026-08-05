@@ -9,6 +9,7 @@ import { RadioScreen } from "../modules/RadioScreen";
 import { GameHostingScreen } from "../modules/GameHostingScreen";
 import { DevPortalScreen } from "../modules/DevPortalScreen";
 import { ToolboxScreen } from "../modules/ToolboxScreen";
+import { AiChatScreen } from "../modules/AiChatScreen";
 import { SettingsModal } from "../modals/SettingsModal";
 import { SearchModal } from "../modals/SearchModal";
 import { UserProfilePopover } from "../modals/UserProfilePopover";
@@ -105,6 +106,7 @@ export function MainScreen() {
           {activeModule === "radio" ? <RadioScreen /> : null}
           {activeModule === "games" ? <GameHostingScreen /> : null}
           {activeModule === "devportal" ? <DevPortalScreen /> : null}
+          {activeModule === "ai" ? <AiChatScreen /> : null}
           {activeModule === "toolbox" ? <ToolboxScreen /> : null}
         </div>
       )}

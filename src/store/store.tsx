@@ -75,7 +75,8 @@ export type AppModule =
   | "radio"
   | "games"
   | "devportal"
-  | "toolbox";
+  | "toolbox"
+  | "ai";
 
 export interface Settings {
   accent: string;

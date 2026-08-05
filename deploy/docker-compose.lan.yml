@@ -47,6 +47,10 @@ services:
       # Optional: Pterodactyl panel — Client API key for game start/stop
       PTERODACTYL_URL: ${PTERODACTYL_URL:-}
       PTERODACTYL_CLIENT_KEY: ${PTERODACTYL_CLIENT_KEY:-}
+      # Optional: Ollama for AI Chat (must be reachable from the api container)
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
     volumes:
       - aegis_uploads:/data/uploads
     networks:

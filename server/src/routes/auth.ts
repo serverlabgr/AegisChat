@@ -13,6 +13,7 @@ import {
   type AuthVars,
 } from "../auth.js";
 import { query } from "../db.js";
+import { rateLimit } from "../lib/rateLimit.js";
 
 const registerSchema = z.object({
   inviteCode: z.string().min(3).max(64),
@@ -32,6 +33,26 @@ const loginSchema = z.object({
 
 export const authRoutes = new Hono<AuthVars>();
 
+function clientIp(c: { req: { header: (n: string) => string | undefined } }): string {
+  const xf = c.req.header("x-forwarded-for");
+  if (xf) return xf.split(",")[0]!.trim();
+  return c.req.header("x-real-ip") ?? "unknown";
+}
+
+function checkAuthLimit(c: {
+  req: { header: (n: string) => string | undefined };
+  json: (body: unknown, status?: number) => Response;
+}): Response | null {
+  const hit = rateLimit(`auth:${clientIp(c)}`, 10, 60_000);
+  if (!hit.ok) {
+    return c.json(
+      { error: `Πολλές προσπάθειες — ξανά σε ${hit.retryAfterSec}s` },
+      429,
+    );
+  }
+  return null;
+}
+
 async function readJson(c: {
   req: { json: () => Promise<unknown> };
 }): Promise<{ ok: true; data: unknown } | { ok: false; response: Response }> {
@@ -46,6 +67,8 @@ async function readJson(c: {
 }
 
 authRoutes.post("/register", async (c) => {
+  const limited = checkAuthLimit(c);
+  if (limited) return limited;
   const raw = await readJson(c);
   if (!raw.ok) return raw.response;
   const body = registerSchema.safeParse(raw.data);
@@ -121,6 +144,8 @@ authRoutes.post("/register", async (c) => {
 });
 
 authRoutes.post("/login", async (c) => {
+  const limited = checkAuthLimit(c);
+  if (limited) return limited;
   const raw = await readJson(c);
   if (!raw.ok) return raw.response;
   const body = loginSchema.safeParse(raw.data);

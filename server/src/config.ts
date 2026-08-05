@@ -43,4 +43,9 @@ export const config = {
   /** Pterodactyl panel (optional) — Client API key for start/stop game servers */
   pterodactylUrl: process.env.PTERODACTYL_URL?.trim() || undefined,
   pterodactylClientKey: process.env.PTERODACTYL_CLIENT_KEY?.trim() || undefined,
+  /** Ollama (optional) — LAN self-hosted LLM for AI Chat module */
+  ollamaUrl: process.env.OLLAMA_URL?.trim() || undefined,
+  ollamaModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
+  ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS ?? 120_000),
+  isProd,
 };

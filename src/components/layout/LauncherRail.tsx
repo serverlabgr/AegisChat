@@ -7,6 +7,7 @@ import {
   Code2,
   Wrench,
   Settings,
+  Bot,
 } from "lucide-react";
 import type { AppModule } from "../../store/store";
 import { useStore } from "../../store/store";
@@ -30,6 +31,7 @@ const MODULES: {
   { id: "friends", label: "Φίλοι", icon: Users },
   { id: "radio", label: "Radio", icon: Radio },
   { id: "games", label: "Game Hosting", icon: Server },
+  { id: "ai", label: "AI Chat", icon: Bot },
   { id: "devportal", label: "Dev Portal", icon: Code2 },
   { id: "toolbox", label: "Toolbox", icon: Wrench },
 ];

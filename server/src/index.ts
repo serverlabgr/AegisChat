@@ -14,6 +14,7 @@ import { radioRoutes } from "./routes/radio.js";
 import { gameRoutes } from "./routes/games.js";
 import { tokenRoutes, hookRoutes } from "./routes/tokens.js";
 import { botRoutes } from "./routes/bots.js";
+import { aiRoutes } from "./routes/ai.js";
 import { attachWebSocket } from "./ws.js";
 
 const app = new Hono();
@@ -33,7 +34,10 @@ app.use(
 
 app.onError((err, c) => {
   console.error(err);
-  return c.json({ error: err.message || "Internal Server Error" }, 500);
+  const message = config.isProd
+    ? "Internal Server Error"
+    : err.message || "Internal Server Error";
+  return c.json({ error: message }, 500);
 });
 
 app.get("/", (c) => {
@@ -90,6 +94,7 @@ app.route("/radio", radioRoutes);
 app.route("/games", gameRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/bots", botRoutes);
+app.route("/ai", aiRoutes);
 app.route("/hooks", hookRoutes);
 
 const server = serve(
@@ -105,7 +110,9 @@ const server = serve(
 
 attachWebSocket(server as unknown as HttpServer);
 
-process.on("SIGINT", async () => {
+async function shutdown() {
   await pool.end();
   process.exit(0);
-});
+}
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

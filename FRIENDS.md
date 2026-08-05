@@ -34,6 +34,7 @@
 - Chat (κανάλια + DM, edit/delete, reactions, typing, notifications, read receipts)
 - Voice mesh στα voice channels
 - Radio (συγχρονισμένα streams)
+- AI Chat (Ollama στο LAN — ιδιωτικές συνομιλίες)
 - Game sessions + Dev Portal tokens/webhooks + Toolbox
 - In-app updater: GitHub Releases (+ LAN fallback)
 
@@ -43,4 +44,4 @@
 
 ## Admin
 
-Invite codes: από Friends / admin στο server. Μην μοιράζεις το Recovery Key σου.
+Invite codes: **μόνο Admin** (Friends → invites / API). Μην μοιράζεις το Recovery Key σου.
