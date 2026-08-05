@@ -36,7 +36,11 @@ function mapUpdateError(err: unknown): string {
   if (lower.includes("signature") || lower.includes("pubkey")) {
     return "Αποτυχία επαλήθευσης υπογραφής update.";
   }
-  if (lower.includes("network") || lower.includes("fetch") || lower.includes("timed out")) {
+  if (
+    lower.includes("network") ||
+    lower.includes("fetch") ||
+    lower.includes("timed out")
+  ) {
     return "Δεν κατέβηκε το update (δίκτυο). Δοκίμασε ξανά ή το LAN mirror.";
   }
   return raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
@@ -78,8 +82,10 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
 
 /**
  * Download + install via NSIS (passive: progress bar, no wizard).
- * NSIS receives /P /R and should restart the app — do not call relaunch() here
- * (race with installer causes close-without-update on Windows).
+ *
+ * On Windows, Tauri launches the NSIS installer with /P /R and exits this
+ * process. Do NOT call relaunch() afterwards — that races the installer and
+ * often leaves the app closed with no restart.
  */
 export async function installAppUpdate(
   onProgress?: (p: UpdateProgress) => void,
@@ -118,25 +124,31 @@ export async function installAppUpdate(
       }
     });
 
-    // Usually unreachable: NSIS spawns and the process exits during install.
+    // Windows usually never reaches here (process exits when NSIS starts).
+    // If it does, do not relaunch — tell the user to open from Start.
     onProgress?.({ phase: "waiting" });
-    try {
-      const { relaunch } = await import("@tauri-apps/plugin-process");
-      await relaunch();
-      return { ok: true };
-    } catch {
-      return {
-        ok: false,
-        error:
-          "Η εγκατάσταση ολοκληρώθηκε αλλά δεν έγινε επανεκκίνηση. Άνοιξε το Aegis από το μενού Έναρξη.",
-      };
-    }
+    return {
+      ok: false,
+      error:
+        "Η εγκατάσταση ξεκίνησε. Αν δεν ανοίξει αυτόματα, άνοιξε το Aegis από το μενού Έναρξη.",
+    };
   } catch (err) {
+    // On Windows, process exit during install can surface as an error — keep target flag.
+    const msg = mapUpdateError(err);
+    const lower = msg.toLowerCase();
+    if (
+      lower.includes("exit") ||
+      lower.includes("closed") ||
+      lower.includes("killed") ||
+      lower.includes("aborted")
+    ) {
+      return { ok: true };
+    }
     try {
       localStorage.removeItem(UPDATE_TARGET_KEY);
     } catch {
       /* ignore */
     }
-    return { ok: false, error: mapUpdateError(err) };
+    return { ok: false, error: msg };
   }
 }

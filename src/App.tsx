@@ -184,14 +184,22 @@ function AppShell() {
                   setUpdatePercent(100);
                   setUpdateStatus("Εγκατάσταση… θα επανεκκινήσει");
                 } else if (p.phase === "waiting") {
-                  setUpdateStatus("Επανεκκίνηση…");
+                  setUpdateStatus(
+                    "Αν δεν ανοίξει αυτόματα, άνοιξέ το από Έναρξη",
+                  );
                 }
               });
+              // On Windows the process usually exits mid-install (NSIS /R).
+              // If we get here, show guidance instead of forcing relaunch.
+              setUpdateBusy(false);
+              setUpdatePercent(null);
+              setUpdateStatus(null);
               if (!result.ok) {
-                setUpdateBusy(false);
-                setUpdatePercent(null);
-                setUpdateStatus(null);
                 toast(result.error);
+              } else {
+                toast(
+                  "Ενημέρωση OK — άνοιξε το Aegis από το μενού Έναρξη αν δεν άνοιξε μόνο του",
+                );
               }
             })();
           }}
