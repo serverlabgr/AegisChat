@@ -88,6 +88,7 @@ export type RadioState = {
   position: number;
   updatedAt: number;
   updatedBy: string | null;
+  source?: "stream" | "spotify";
 };
 
 /** channelId → participants */

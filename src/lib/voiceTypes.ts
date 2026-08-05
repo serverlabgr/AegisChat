@@ -11,4 +11,6 @@ export type RadioState = {
   position: number;
   updatedAt: number;
   updatedBy: string | null;
+  /** stream = HTML5 audio URL; spotify = open.spotify.com link for embed */
+  source?: "stream" | "spotify";
 };
