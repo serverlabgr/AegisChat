@@ -116,14 +116,28 @@ export function RadioScreen() {
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "none";
-    audio.crossOrigin = "anonymous";
+    // Do NOT set crossOrigin — many Icecast/Shoutcast streams lack CORS
+    // and HTML5 audio still plays fine without it.
     audioRef.current = audio;
+    const onError = () => {
+      setPlaying(false);
+      const code = audio.error?.code;
+      const hint =
+        code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+          ? "Η ροή δεν υποστηρίζεται"
+          : code === MediaError.MEDIA_ERR_NETWORK
+            ? "Πρόβλημα δικτύου με τη ροή"
+            : "Αποτυχία playback";
+      toast(hint);
+    };
+    audio.addEventListener("error", onError);
     return () => {
+      audio.removeEventListener("error", onError);
       audio.pause();
       audio.src = "";
       audioRef.current = null;
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -155,23 +169,55 @@ export function RadioScreen() {
     setTab("live");
     setSpotifyEmbed(null);
     setStationId(id);
+    setTitle(label);
     const audio = audioRef.current;
-    if (audio) {
+    if (!audio) return;
+
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      void audio
+        .play()
+        .then(() => {
+          setPlaying(true);
+          pushState({
+            trackUrl: url,
+            title: label,
+            playing: true,
+            position: 0,
+            source: "stream",
+          });
+        })
+        .catch((err: unknown) => {
+          setPlaying(false);
+          const name = err instanceof Error ? err.name : "";
+          toast(
+            name === "NotAllowedError"
+              ? "Πάτα Play για να ξεκινήσει ο ήχος"
+              : "Δεν παίζει η ροή — δοκίμασε άλλο σταθμό",
+          );
+        });
+    };
+
+    if (audio.src !== url) {
       audio.src = url;
       audio.load();
-      void audio.play().catch(() =>
-        toast("Δεν παίζει η ροή — δοκίμασε ξανά σε λίγο"),
-      );
     }
-    setPlaying(true);
-    setTitle(label);
-    pushState({
-      trackUrl: url,
-      title: label,
-      playing: true,
-      position: 0,
-      source: "stream",
-    });
+    if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      start();
+      return;
+    }
+    const onReady = () => {
+      audio.removeEventListener("canplay", onReady);
+      start();
+    };
+    audio.addEventListener("canplay", onReady);
+    // Endless Icecast streams sometimes never fire canplay reliably.
+    window.setTimeout(() => {
+      audio.removeEventListener("canplay", onReady);
+      start();
+    }, 1200);
   };
 
   const selectStation = (id: string) => {
@@ -188,21 +234,17 @@ export function RadioScreen() {
       toast("Για Spotify πάτα play στο embed");
       return;
     }
-    const audio = audioRef.current;
-    if (!audio) return;
     if (!streamUrl) {
       toast("Διάλεξε σταθμό");
       return;
     }
-    if (!audio.src) {
-      audio.src = streamUrl;
-      audio.load();
+    if (playing) {
+      audioRef.current?.pause();
+      setPlaying(false);
+      pushState({ playing: false, trackUrl: streamUrl, source: "stream" });
+      return;
     }
-    const next = !playing;
-    if (next) void audio.play().catch(() => toast("Αποτυχία playback"));
-    else audio.pause();
-    setPlaying(next);
-    pushState({ playing: next, trackUrl: streamUrl, source: "stream" });
+    playStream(streamUrl, station.name, stationId);
   };
 
   const applySpotify = () => {
