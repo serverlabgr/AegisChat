@@ -15,6 +15,10 @@ import { gameRoutes } from "./routes/games.js";
 import { tokenRoutes, hookRoutes } from "./routes/tokens.js";
 import { botRoutes } from "./routes/bots.js";
 import { aiRoutes } from "./routes/ai.js";
+import { emojiRoutes } from "./routes/emoji.js";
+import { threadRoutes } from "./routes/threads.js";
+import { embedRoutes } from "./routes/embeds.js";
+import { voiceRoutes } from "./routes/voice.js";
 import { attachWebSocket } from "./ws.js";
 
 const app = new Hono();
@@ -95,6 +99,10 @@ app.route("/games", gameRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/bots", botRoutes);
 app.route("/ai", aiRoutes);
+app.route("/emoji", emojiRoutes);
+app.route("/threads", threadRoutes);
+app.route("/embeds", embedRoutes);
+app.route("/voice", voiceRoutes);
 app.route("/hooks", hookRoutes);
 
 const server = serve(

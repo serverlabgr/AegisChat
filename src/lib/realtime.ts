@@ -45,6 +45,18 @@ export type RealtimeHandlers = {
     action: "created" | "updated" | "deleted",
   ) => void;
   onChannelsChanged?: (groupId: string | null) => void;
+  onPin?: (
+    channelId: string,
+    messageId: string,
+    pinned: boolean,
+    pinnedBy: string,
+  ) => void;
+  onMention?: (
+    channelId: string,
+    messageId: string,
+    fromUserId: string,
+  ) => void;
+  onPresenceActivity?: (userId: string, activity: string | null) => void;
   onPong?: (rttMs: number) => void;
   onHello?: (online: string[], radio?: RadioState) => void;
   onOpen?: () => void;
@@ -117,6 +129,9 @@ export class RealtimeClient {
         session?: unknown;
         action?: "created" | "updated" | "deleted";
         groupId?: string | null;
+        pinned?: boolean;
+        pinnedBy?: string;
+        activity?: string | null;
       };
       try {
         msg = JSON.parse(String(ev.data));
@@ -166,6 +181,9 @@ export class RealtimeClient {
     session?: unknown;
     action?: "created" | "updated" | "deleted";
     groupId?: string | null;
+    pinned?: boolean;
+    pinnedBy?: string;
+    activity?: string | null;
   }) {
     switch (msg.type) {
       case "hello":
@@ -296,6 +314,33 @@ export class RealtimeClient {
         break;
       case "channels_changed":
         this.handlers.onChannelsChanged?.(msg.groupId ?? null);
+        break;
+      case "pin":
+        if (msg.channelId && msg.messageId && msg.pinnedBy != null) {
+          this.handlers.onPin?.(
+            msg.channelId,
+            msg.messageId,
+            Boolean(msg.pinned),
+            msg.pinnedBy,
+          );
+        }
+        break;
+      case "mention":
+        if (msg.channelId && msg.messageId && msg.fromUserId) {
+          this.handlers.onMention?.(
+            msg.channelId,
+            msg.messageId,
+            msg.fromUserId,
+          );
+        }
+        break;
+      case "presence_activity":
+        if (msg.userId) {
+          this.handlers.onPresenceActivity?.(
+            msg.userId,
+            (msg.activity as string | null | undefined) ?? null,
+          );
+        }
         break;
       case "pong":
         if (typeof msg.clientTime === "number") {

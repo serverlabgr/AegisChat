@@ -50,6 +50,22 @@ export async function canManageChannels(
   return rows[0].created_by === userId;
 }
 
+/** Pin / moderate messages: Admin, Mod (home), or group owner. */
+export async function canModerate(
+  userId: string,
+  groupId: string | null,
+): Promise<boolean> {
+  if (await canManageChannels(userId, groupId)) return true;
+  if (groupId == null) {
+    const { rows } = await query(`SELECT role FROM users WHERE id = $1`, [
+      userId,
+    ]);
+    const role = String(rows[0]?.role ?? "").toLowerCase();
+    return role === "mod" || role === "moderator";
+  }
+  return false;
+}
+
 export function channelSlug(name: string): string {
   const base = name
     .trim()

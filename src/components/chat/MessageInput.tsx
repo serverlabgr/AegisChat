@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { FileIcon, ImagePlus, Send, Smile, X, Loader2 } from "lucide-react";
-import type { Message } from "../../data/mock";
+import type { Message, User } from "../../data/mock";
 import { useStore } from "../../store/store";
-import { EmojiPicker } from "../common/EmojiPicker";
+import { EmojiPicker, useCustomEmojis } from "../common/EmojiPicker";
 import {
   uploadEncryptedFile,
   MEDIA_MAX_BYTES,
   MEDIA_WARN_BYTES,
 } from "../../lib/media";
+import { mentionToken } from "../../lib/mentions";
+import { HOME_SERVER_ID } from "../../data/modules";
 import "./MessageInput.css";
 
 interface MessageInputProps {
@@ -32,7 +34,15 @@ export function MessageInput({
   replyTo,
   onCancelReply,
 }: MessageInputProps) {
-  const { sendMessage, users, toast, onlineMode, sendTyping } = useStore();
+  const {
+    sendMessage,
+    users,
+    memberIds,
+    toast,
+    onlineMode,
+    sendTyping,
+    activeGroupId,
+  } = useStore();
   const [value, setValue] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [staged, setStaged] = useState<StagedFile[]>([]);
@@ -40,9 +50,14 @@ export function MessageInput({
   const [uploadLabel, setUploadLabel] = useState("");
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [mentionQ, setMentionQ] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const typingDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { emojis: customEmojis, reload: reloadEmojis } = useCustomEmojis(
+    activeGroupId === HOME_SERVER_ID ? null : activeGroupId,
+    onlineMode,
+  );
 
   const bumpTyping = () => {
     if (!onlineMode) return;
@@ -93,6 +108,46 @@ export function MessageInput({
     setStaged((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const detectMention = (text: string, caret: number) => {
+    const before = text.slice(0, caret);
+    const m = /(^|\s)@([^\s@]*)$/.exec(before);
+    setMentionQ(m ? m[2].toLowerCase() : null);
+  };
+
+  const insertMention = (user: User) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const caret = el.selectionStart ?? value.length;
+    const before = value.slice(0, caret);
+    const after = value.slice(caret);
+    const m = /(^|\s)@([^\s@]*)$/.exec(before);
+    if (!m) return;
+    const start = before.length - m[2].length - 1;
+    const next =
+      before.slice(0, start) + mentionToken(user.id) + " " + after;
+    setValue(next);
+    setMentionQ(null);
+    queueMicrotask(() => {
+      const pos = start + mentionToken(user.id).length + 1;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const mentionCandidates =
+    mentionQ == null
+      ? []
+      : memberIds
+          .map((id) => users[id])
+          .filter(Boolean)
+          .filter(
+            (u) =>
+              mentionQ === "" ||
+              u.name.toLowerCase().includes(mentionQ) ||
+              mentionQ === "everyone",
+          )
+          .slice(0, 6);
+
   const submit = () => {
     const text = value.trim();
     if ((!text && staged.length === 0) || uploading) return;
@@ -102,6 +157,7 @@ export function MessageInput({
       setValue("");
       onCancelReply();
       setShowEmoji(false);
+      setMentionQ(null);
       return;
     }
 
@@ -116,7 +172,6 @@ export function MessageInput({
           setProgress(0);
           metas.push(
             await uploadEncryptedFile(file, (pct) => {
-              // Overall progress across files
               const base = (i / staged.length) * 100;
               const slice = pct / staged.length;
               setProgress(Math.round(base + slice));
@@ -247,31 +302,58 @@ export function MessageInput({
         >
           <ImagePlus size={20} />
         </button>
-        <textarea
-          ref={inputRef}
-          className="message-input__field"
-          placeholder={placeholder}
-          value={value}
-          rows={1}
-          disabled={uploading}
-          onChange={(e) => {
-            setValue(e.target.value);
-            if (e.target.value.trim()) bumpTyping();
-          }}
-          onPaste={(e) => {
-            const items = e.clipboardData?.files;
-            if (items && items.length > 0) {
-              e.preventDefault();
-              stageFiles(items);
+        <div className="message-input__field-wrap">
+          {mentionCandidates.length > 0 ? (
+            <ul className="message-input__mentions">
+              {mentionCandidates.map((u) => (
+                <li key={u.id}>
+                  <button type="button" onClick={() => insertMention(u)}>
+                    <span style={{ color: u.color }}>{u.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <textarea
+            ref={inputRef}
+            className="message-input__field"
+            placeholder={placeholder}
+            value={value}
+            rows={1}
+            disabled={uploading}
+            onChange={(e) => {
+              setValue(e.target.value);
+              detectMention(e.target.value, e.target.selectionStart ?? 0);
+              if (e.target.value.trim()) bumpTyping();
+            }}
+            onClick={(e) =>
+              detectMention(
+                (e.target as HTMLTextAreaElement).value,
+                (e.target as HTMLTextAreaElement).selectionStart ?? 0,
+              )
             }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
+            onKeyUp={(e) =>
+              detectMention(
+                (e.target as HTMLTextAreaElement).value,
+                (e.target as HTMLTextAreaElement).selectionStart ?? 0,
+              )
             }
-          }}
-        />
+            onPaste={(e) => {
+              const items = e.clipboardData?.files;
+              if (items && items.length > 0) {
+                e.preventDefault();
+                stageFiles(items);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setMentionQ(null);
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+        </div>
         <div className="message-input__emoji-wrap">
           <button
             type="button"
@@ -283,6 +365,8 @@ export function MessageInput({
           </button>
           {showEmoji ? (
             <EmojiPicker
+              customEmojis={customEmojis}
+              onCustomChanged={reloadEmojis}
               onSelect={(emoji) => {
                 setValue((v) => v + emoji);
                 setShowEmoji(false);

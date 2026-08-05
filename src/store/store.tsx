@@ -136,6 +136,10 @@ interface StoreValue {
   editMessage: (messageId: string, content: string) => void;
   deleteMessage: (messageId: string) => void;
   toggleReaction: (messageId: string, emoji: string) => void;
+  pinMessage: (messageId: string) => void;
+  unpinMessage: (messageId: string) => void;
+  channelPins: Record<string, Message[]>;
+  refreshChannelPins: (channelId: string) => Promise<void>;
   setStatus: (status: UserStatus) => void;
   setUserPing: (userId: string, ping: number | null) => void;
   getPing: (userId: string) => number | null;
@@ -217,6 +221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     usePersisted<Record<string, Message[]>>("messages", initialMessages);
   const [dmMessages, setDmMessages] =
     usePersisted<Record<string, Message[]>>("dm-messages", initialDMMessages);
+  const [channelPins, setChannelPins] = useState<Record<string, Message[]>>({});
   const [requests, setRequests] = usePersisted<PendingRequest[]>("requests", initialRequests);
   const [invites, setInvites] = usePersisted<FriendInvite[]>("invites", initialInvites);
   const [groups, setGroups] = usePersisted<Group[]>("groups", initialGroups);
@@ -638,15 +643,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           try {
             const payload = await encryptText(plainBody);
             if (view.type === "channel") {
+              const { extractMentionUserIds } = await import("../lib/mentions");
+              const mentionUserIds = extractMentionUserIds(
+                trimmed,
+                usersRef.current,
+                Object.keys(usersRef.current),
+              );
               const { message } = await api<{ message: Message }>(
                 `/channels/${encodeURIComponent(view.id)}/messages`,
-                { method: "POST", body: { content: payload, replyToId } },
+                {
+                  method: "POST",
+                  body: { content: payload, replyToId, mentionUserIds },
+                },
               );
               ingestChannelMessage(view.id, {
                 ...message,
                 content: plainBody,
                 encrypted: true,
+                mentionUserIds,
               });
+              if (trimmed.startsWith("/")) {
+                void api("/bots/invoke", {
+                  method: "POST",
+                  body: { channelId: view.id, text: trimmed },
+                }).catch(() => undefined);
+              }
             } else {
               const { message } = await api<{ message: Message }>(
                 `/dms/${encodeURIComponent(view.id)}/messages`,
@@ -860,6 +881,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast,
       applyReaction,
     ],
+  );
+
+  const refreshChannelPins = useCallback(async (channelId: string) => {
+    if (!onlineRef.current) return;
+    try {
+      const { pins } = await api<{ pins: Message[] }>(
+        `/channels/${encodeURIComponent(channelId)}/pins`,
+      );
+      const decrypted: Message[] = [];
+      for (const p of pins) {
+        try {
+          const { decryptText } = await import("../lib/messageCrypto");
+          const content = await decryptText(p.content);
+          decrypted.push({ ...p, content, encrypted: true, reactions: [] });
+        } catch {
+          decrypted.push({ ...p, reactions: p.reactions ?? [] });
+        }
+      }
+      setChannelPins((prev) => ({ ...prev, [channelId]: decrypted }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const pinMessage = useCallback(
+    (messageId: string) => {
+      const view = activeViewRef.current;
+      if (view.type !== "channel" || !onlineRef.current) return;
+      void api(
+        `/channels/${encodeURIComponent(view.id)}/pins/${encodeURIComponent(messageId)}`,
+        { method: "POST" },
+      )
+        .then(() => refreshChannelPins(view.id))
+        .catch((err) =>
+          toast(err instanceof Error ? err.message : "Αποτυχία pin"),
+        );
+    },
+    [refreshChannelPins, toast],
+  );
+
+  const unpinMessage = useCallback(
+    (messageId: string) => {
+      const view = activeViewRef.current;
+      if (view.type !== "channel" || !onlineRef.current) return;
+      void api(
+        `/channels/${encodeURIComponent(view.id)}/pins/${encodeURIComponent(messageId)}`,
+        { method: "DELETE" },
+      )
+        .then(() => refreshChannelPins(view.id))
+        .catch((err) =>
+          toast(err instanceof Error ? err.message : "Αποτυχία unpin"),
+        );
+    },
+    [refreshChannelPins, toast],
   );
 
   const setPresence = useCallback(
@@ -1672,6 +1747,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onChannelsChanged: () => {
         void refreshChannels();
       },
+      onPin: (channelId) => {
+        void refreshChannelPins(channelId);
+      },
+      onMention: (channelId, _messageId, fromUserId) => {
+        const from = usersRef.current[fromUserId]?.name ?? "Κάποιος";
+        notifyDesktop("Mention", `${from} σε ανάφερε`);
+        toast(`${from} σε ανάφερε`);
+        bumpUnread(channelId, fromUserId);
+      },
+      onPresenceActivity: (userId, activity) => {
+        setUsers((prev) => {
+          const u = prev[userId];
+          if (!u) return prev;
+          return { ...prev, [userId]: { ...u, activity } };
+        });
+      },
       onPong: (rttMs) => {
         setUserPing(currentUserRef.current, rttMs);
       },
@@ -1710,6 +1801,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDmMessages,
     setReadCursors,
     refreshChannels,
+    refreshChannelPins,
+    notifyDesktop,
+    bumpUnread,
+    toast,
   ]);
 
   const value = useMemo<StoreValue>(
@@ -1722,6 +1817,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dms,
       messagesByChannel,
       dmMessages,
+      channelPins,
       activeView,
       activeModule,
       typingUserId,
@@ -1741,6 +1837,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       editMessage,
       deleteMessage,
       toggleReaction,
+      pinMessage,
+      unpinMessage,
+      refreshChannelPins,
       setStatus,
       setUserPing,
       getPing,
@@ -1784,6 +1883,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dms,
       messagesByChannel,
       dmMessages,
+      channelPins,
       activeView,
       activeModule,
       typingUserId,
@@ -1803,6 +1903,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       editMessage,
       deleteMessage,
       toggleReaction,
+      pinMessage,
+      unpinMessage,
+      refreshChannelPins,
       setStatus,
       setUserPing,
       getPing,

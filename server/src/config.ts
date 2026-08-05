@@ -47,5 +47,12 @@ export const config = {
   ollamaUrl: process.env.OLLAMA_URL?.trim() || undefined,
   ollamaModel: process.env.OLLAMA_MODEL?.trim() || "llama3.2",
   ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS ?? 120_000),
+  /** Optional coturn / TURN for off-LAN WebRTC */
+  turnUrls: (process.env.TURN_URLS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  turnUsername: process.env.TURN_USERNAME?.trim() || "",
+  turnCredential: process.env.TURN_CREDENTIAL?.trim() || "",
   isProd,
 };

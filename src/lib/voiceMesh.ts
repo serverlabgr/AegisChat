@@ -13,15 +13,29 @@ type Peer = {
 
 let channelId: string | null = null;
 let localStream: MediaStream | null = null;
+let screenStream: MediaStream | null = null;
 let peers = new Map<string, Peer>();
 let muted = false;
 let deafened = false;
 let myUserId: string | null = null;
+let iceServers: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+];
+
+export async function refreshIceServers(): Promise<void> {
+  try {
+    const { api } = await import("./api");
+    const res = await api<{ iceServers: RTCIceServer[] }>("/voice/ice");
+    if (Array.isArray(res.iceServers) && res.iceServers.length) {
+      iceServers = res.iceServers;
+    }
+  } catch {
+    /* keep STUN default */
+  }
+}
 
 function makePc(peerId: string): Peer {
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-  });
+  const pc = new RTCPeerConnection({ iceServers });
   const remoteAudio = new Audio();
   remoteAudio.autoplay = true;
   remoteAudio.setAttribute("playsinline", "true");
@@ -35,7 +49,15 @@ function makePc(peerId: string): Peer {
   };
   pc.ontrack = (ev) => {
     const [stream] = ev.streams;
-    if (stream) {
+    if (!stream) return;
+    const hasVideo = stream.getVideoTracks().length > 0;
+    if (hasVideo) {
+      window.dispatchEvent(
+        new CustomEvent("aegis-voice-video", {
+          detail: { peerId, stream },
+        }),
+      );
+    } else {
       remoteAudio.srcObject = stream;
       remoteAudio.muted = deafened;
       void remoteAudio.play().catch(() => undefined);
@@ -45,6 +67,11 @@ function makePc(peerId: string): Peer {
   if (localStream) {
     for (const track of localStream.getTracks()) {
       pc.addTrack(track, localStream);
+    }
+  }
+  if (screenStream) {
+    for (const track of screenStream.getTracks()) {
+      pc.addTrack(track, screenStream);
     }
   }
 
@@ -112,6 +139,7 @@ export async function joinVoiceMesh(
   existing: VoiceParticipant[],
 ) {
   await leaveVoiceMesh(false);
+  await refreshIceServers();
   channelId = voiceChannelId;
   myUserId = userId;
   muted = initialMuted;
@@ -121,10 +149,48 @@ export async function joinVoiceMesh(
 
   for (const p of existing) {
     if (p.userId === userId) continue;
-    // Only the lower id offers to avoid glare
     const shouldOffer = userId < p.userId;
     await connectToPeer(p.userId, !shouldOffer);
   }
+}
+
+/** Go Live — share screen into the current voice mesh. */
+export async function startVoiceGoLive(): Promise<void> {
+  if (!channelId || !myUserId) throw new Error("Δεν είσαι σε voice");
+  if (screenStream) return;
+  screenStream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: false,
+  });
+  screenStream.getVideoTracks()[0]?.addEventListener("ended", () => {
+    void stopVoiceGoLive();
+  });
+  for (const [peerId, peer] of peers) {
+    for (const track of screenStream.getTracks()) {
+      peer.pc.addTrack(track, screenStream);
+    }
+    const offer = await peer.pc.createOffer();
+    await peer.pc.setLocalDescription(offer);
+    realtime.sendVoiceSignal(channelId, peerId, { kind: "offer", sdp: offer });
+  }
+  window.dispatchEvent(
+    new CustomEvent("aegis-voice-video", {
+      detail: { peerId: myUserId, stream: screenStream, local: true },
+    }),
+  );
+}
+
+export async function stopVoiceGoLive(): Promise<void> {
+  if (!screenStream) return;
+  for (const track of screenStream.getTracks()) track.stop();
+  screenStream = null;
+  window.dispatchEvent(
+    new CustomEvent("aegis-voice-video", { detail: { peerId: null } }),
+  );
+}
+
+export function isVoiceGoLive(): boolean {
+  return Boolean(screenStream);
 }
 
 export async function syncVoiceParticipants(list: VoiceParticipant[]) {
@@ -205,6 +271,7 @@ export async function leaveVoiceMesh(notify = true) {
   if (notify && channelId) {
     realtime.sendVoiceLeave(channelId);
   }
+  await stopVoiceGoLive();
   for (const peer of peers.values()) {
     peer.pc.close();
     peer.remoteAudio.srcObject = null;

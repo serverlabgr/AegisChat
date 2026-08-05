@@ -79,6 +79,35 @@ export type OutEvent =
   | {
       type: "channels_changed";
       groupId: string | null;
+    }
+  | {
+      type: "pin";
+      channelId: string;
+      messageId: string;
+      pinned: boolean;
+      pinnedBy: string;
+    }
+  | {
+      type: "mention";
+      channelId: string;
+      messageId: string;
+      fromUserId: string;
+    }
+  | {
+      type: "presence_activity";
+      userId: string;
+      activity: string | null;
+    }
+  | {
+      type: "thread_created";
+      channelId: string;
+      thread: unknown;
+    }
+  | {
+      type: "thread_message";
+      channelId: string;
+      threadId: string;
+      message: unknown;
     };
 
 export type RadioState = {

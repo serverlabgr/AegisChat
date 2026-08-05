@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
 import {
+  MonitorUp,
+  MonitorOff,
   Hash,
   Radio,
   Mic,
@@ -15,8 +16,14 @@ import {
   Trash2,
   Pencil,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { HOME_SERVER_ID, PERSONAL_SPACE_ID } from "../../data/modules";
 import { useStore } from "../../store/store";
+import {
+  isVoiceGoLive,
+  startVoiceGoLive,
+  stopVoiceGoLive,
+} from "../../lib/voiceMesh";
 import { Avatar } from "../common/Avatar";
 import { PersonalNav } from "./PersonalNav";
 import {
@@ -59,6 +66,7 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
     leaveVoice,
     toggleMute,
     toggleDeafen,
+    toast,
   } = useStore();
   const me = users[currentUserId];
   const [open, setOpen] = useState<Record<SectionKey, boolean>>({
@@ -416,6 +424,7 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
                 </span>
               </div>
             </div>
+            <GoLiveButton toast={toast} />
             <button
               type="button"
               className="sysnav__voice-leave"
@@ -529,5 +538,34 @@ export function SystemNav({ onOpenSettings, onOpenProfile }: SystemNavProps) {
         </>
       ) : null}
     </aside>
+  );
+}
+
+function GoLiveButton({ toast }: { toast: (t: string) => void }) {
+  const [live, setLive] = useState(isVoiceGoLive());
+  useEffect(() => {
+    const id = window.setInterval(() => setLive(isVoiceGoLive()), 800);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <button
+      type="button"
+      className={`sysnav__ctrl${live ? " sysnav__ctrl--off" : ""}`}
+      title={live ? "Stop Go Live" : "Go Live (screen share)"}
+      aria-label="Go Live"
+      onClick={() => {
+        if (live || isVoiceGoLive()) {
+          void stopVoiceGoLive().then(() => setLive(false));
+          return;
+        }
+        void startVoiceGoLive()
+          .then(() => setLive(true))
+          .catch((err) =>
+            toast(err instanceof Error ? err.message : "Go Live failed"),
+          );
+      }}
+    >
+      {live ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
+    </button>
   );
 }

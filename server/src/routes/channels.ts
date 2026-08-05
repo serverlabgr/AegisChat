@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth, type AuthVars } from "../auth.js";
-import { canManageChannels } from "../channelAuth.js";
+import { canManageChannels, canModerate } from "../channelAuth.js";
 import { query } from "../db.js";
-import { broadcast } from "../ws.js";
+import { broadcast, sendToUser } from "../ws.js";
 
 export const channelRoutes = new Hono<AuthVars>();
 channelRoutes.use("*", requireAuth);
@@ -123,6 +123,8 @@ channelRoutes.post("/:id/messages", async (c) => {
     .object({
       content: z.string().trim().min(1).max(12000),
       replyToId: z.string().uuid().optional(),
+      /** Plaintext mention targets (body is E2E ciphertext). */
+      mentionUserIds: z.array(z.string().uuid()).max(32).optional(),
     })
     .safeParse(await c.req.json());
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
@@ -132,18 +134,29 @@ channelRoutes.post("/:id/messages", async (c) => {
   ]);
   if (!ch.rows[0]) return c.json({ error: "Channel not found" }, 404);
 
+  const authorId = c.get("userId");
   const { rows } = await query(
     `INSERT INTO messages (channel_id, author_id, content, reply_to_id)
      VALUES ($1, $2, $3, $4)
      RETURNING id, channel_id, author_id, content, reply_to_id, edited, created_at`,
     [
       channelId,
-      c.get("userId"),
+      authorId,
       body.data.content,
       body.data.replyToId ?? null,
     ],
   );
   const row = rows[0];
+  const mentionIds = [
+    ...new Set((body.data.mentionUserIds ?? []).filter((id) => id !== authorId)),
+  ];
+  for (const uid of mentionIds) {
+    await query(
+      `INSERT INTO message_mentions (message_id, user_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [row.id, uid],
+    );
+  }
   const message = {
     id: row.id,
     authorId: row.author_id,
@@ -153,8 +166,17 @@ channelRoutes.post("/:id/messages", async (c) => {
     edited: row.edited,
     replyToId: row.reply_to_id ?? undefined,
     reactions: [] as { emoji: string; userIds: string[] }[],
+    mentionUserIds: mentionIds,
   };
   broadcast({ type: "message", channelId, message });
+  for (const uid of mentionIds) {
+    sendToUser(uid, {
+      type: "mention",
+      channelId,
+      messageId: row.id as string,
+      fromUserId: authorId,
+    });
+  }
   return c.json({ message }, 201);
 });
 
@@ -200,7 +222,9 @@ channelRoutes.delete("/messages/:messageId", async (c) => {
 
 channelRoutes.post("/messages/:messageId/reactions", async (c) => {
   const messageId = c.req.param("messageId");
-  const body = z.object({ emoji: z.string().min(1).max(16) }).safeParse(await c.req.json());
+  const body = z
+    .object({ emoji: z.string().min(1).max(64) })
+    .safeParse(await c.req.json());
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
   const userId = c.get("userId");
 
@@ -238,6 +262,101 @@ channelRoutes.post("/messages/:messageId/reactions", async (c) => {
     added,
   });
   return c.json({ ok: true, added });
+});
+
+/** List pinned messages for a channel (ciphertext bodies). */
+channelRoutes.get("/:id/pins", async (c) => {
+  const channelId = c.req.param("id");
+  const { rows } = await query(
+    `SELECT m.id, m.channel_id, m.author_id, m.content, m.reply_to_id, m.edited, m.created_at,
+            p.pinned_by, p.pinned_at
+     FROM channel_pins p
+     INNER JOIN messages m ON m.id = p.message_id
+     WHERE p.channel_id = $1
+     ORDER BY p.pinned_at DESC
+     LIMIT 50`,
+    [channelId],
+  );
+  return c.json({
+    pins: rows.map((m) => ({
+      id: m.id,
+      authorId: m.author_id,
+      content: m.content,
+      timestamp: new Date(m.created_at).getTime(),
+      encrypted: true,
+      edited: m.edited,
+      replyToId: m.reply_to_id ?? undefined,
+      reactions: [] as { emoji: string; userIds: string[] }[],
+      pinnedBy: m.pinned_by,
+      pinnedAt: new Date(m.pinned_at).getTime(),
+    })),
+  });
+});
+
+channelRoutes.post("/:id/pins/:messageId", async (c) => {
+  const channelId = c.req.param("id");
+  const messageId = c.req.param("messageId");
+  const userId = c.get("userId");
+
+  const ch = await query(
+    `SELECT id, group_id AS "groupId" FROM channels WHERE id = $1 AND type = 'text'`,
+    [channelId],
+  );
+  if (!ch.rows[0]) return c.json({ error: "Channel not found" }, 404);
+  const groupId = (ch.rows[0].groupId as string | null) ?? null;
+  if (!(await canModerate(userId, groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const msg = await query(
+    `SELECT id FROM messages WHERE id = $1 AND channel_id = $2`,
+    [messageId, channelId],
+  );
+  if (!msg.rows[0]) return c.json({ error: "Message not found" }, 404);
+
+  await query(
+    `INSERT INTO channel_pins (channel_id, message_id, pinned_by)
+     VALUES ($1, $2, $3)
+     ON CONFLICT DO NOTHING`,
+    [channelId, messageId, userId],
+  );
+  broadcast({
+    type: "pin",
+    channelId,
+    messageId,
+    pinned: true,
+    pinnedBy: userId,
+  });
+  return c.json({ ok: true, pinned: true });
+});
+
+channelRoutes.delete("/:id/pins/:messageId", async (c) => {
+  const channelId = c.req.param("id");
+  const messageId = c.req.param("messageId");
+  const userId = c.get("userId");
+
+  const ch = await query(
+    `SELECT id, group_id AS "groupId" FROM channels WHERE id = $1`,
+    [channelId],
+  );
+  if (!ch.rows[0]) return c.json({ error: "Channel not found" }, 404);
+  const groupId = (ch.rows[0].groupId as string | null) ?? null;
+  if (!(await canModerate(userId, groupId))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await query(
+    `DELETE FROM channel_pins WHERE channel_id = $1 AND message_id = $2`,
+    [channelId, messageId],
+  );
+  broadcast({
+    type: "pin",
+    channelId,
+    messageId,
+    pinned: false,
+    pinnedBy: userId,
+  });
+  return c.json({ ok: true, pinned: false });
 });
 
 channelRoutes.patch("/:id", async (c) => {

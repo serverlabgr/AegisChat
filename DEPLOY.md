@@ -53,7 +53,8 @@ curl http://127.0.0.1:3001/health
 2. Απενεργοποίησε / μην μοιράζεις το seed invite· φτιάξε νέο ως Admin
 3. Firewall: **μην** εκθέσεις `:3001` / `:8080` στο internet (μόνο LAN)
 4. Cron `backup.sh` + αντίγραφο εκτός VM
-5. (AI Chat) στο `.env`: `OLLAMA_URL=http://<host>:11434`, `OLLAMA_MODEL=…` · Ollama να ακούει στο LAN · `docker compose … up -d --build api`
+5. (AI Chat) **ξεχωριστό GPU VM**: εγκατάστησε Ollama εκεί, `ollama pull llama3.2`, άκου στο LAN (`OLLAMA_HOST=0.0.0.0`). Στο main API `.env`: `OLLAMA_URL=http://<gpu-vm-ip>:11434` · μετά `docker compose -f docker-compose.lan.yml up -d --build api`
+6. (TURN / off-LAN voice) μετά το RAM upgrade: βάλε `TURN_*` στο `.env` και `docker compose -f docker-compose.lan.yml --profile turn up -d`
 
 Ενημέρωση API χωρίς git στο VM (από το PC):
 

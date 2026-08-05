@@ -7,6 +7,8 @@ export interface User {
   role?: string;
   color: string;
   bio?: string;
+  /** Rich presence e.g. Playing Minecraft */
+  activity?: string | null;
 }
 
 export interface Channel {
@@ -31,6 +33,7 @@ export interface Message {
   reactions: Reaction[];
   system?: boolean;
   replyToId?: string;
+  mentionUserIds?: string[];
 }
 
 export interface DMConversation {

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Hash, AtSign, Search, PanelRight, Lock, MessageCircle } from "lucide-react";
 import type { Message } from "../../data/mock";
 import { HOME_SERVER_ID } from "../../data/modules";
 import { useStore } from "../../store/store";
 import { MessageList } from "../chat/MessageList";
 import { MessageInput } from "../chat/MessageInput";
+import { PinsStrip } from "../chat/PinsStrip";
 import { ScreenShareControls } from "../chat/ScreenShareOverlay";
 import { Avatar } from "../common/Avatar";
 import "./ChatArea.css";
@@ -30,8 +31,17 @@ export function ChatArea({
     groups,
     activeGroupId,
     homeChannels,
+    channelPins,
+    refreshChannelPins,
+    unpinMessage,
+    onlineMode,
   } = useStore();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+
+  useEffect(() => {
+    if (!onlineMode || activeView.type !== "channel") return;
+    void refreshChannelPins(activeView.id);
+  }, [onlineMode, activeView, refreshChannelPins]);
 
   const isPersonalHome =
     activeView.type === "dm" && activeView.id === "__personal_home__";
@@ -159,6 +169,13 @@ export function ChatArea({
         </div>
       ) : (
         <>
+          {!isDM ? (
+            <PinsStrip
+              pins={channelPins[activeView.id] ?? []}
+              onUnpin={unpinMessage}
+              canManage
+            />
+          ) : null}
           <MessageList
             messages={messages}
             headerTitle={headerTitle}

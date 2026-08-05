@@ -91,6 +91,30 @@
   white-space: pre-wrap;
 }
 
+.message-item__mention {
+  display: inline;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(124, 140, 255, 0.22);
+  color: #a8b4ff;
+  font-weight: 600;
+}
+
+.message-item__custom-emoji {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: -5px;
+  object-fit: contain;
+  margin: 0 1px;
+}
+
+.reaction__custom {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
 .message-item__edited {
   font-family: var(--font-mono);
   font-size: 9px;

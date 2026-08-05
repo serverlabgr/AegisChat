@@ -247,3 +247,42 @@
     transform: rotate(360deg);
   }
 }
+
+.message-input__field-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.message-input__mentions {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-panel-2, #1a1f2e);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  z-index: 50;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.message-input__mentions button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.message-input__mentions button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}

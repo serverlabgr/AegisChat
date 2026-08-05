@@ -41,3 +41,16 @@
 .emoji-picker__item:hover {
   background: var(--bg-hover);
 }
+
+.emoji-picker__sep {
+  grid-column: 1 / -1;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+.emoji-picker__item--custom img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}

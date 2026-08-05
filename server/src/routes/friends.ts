@@ -444,6 +444,7 @@ friendRoutes.patch("/me", async (c) => {
       bio: z.string().max(280).optional(),
       status: z.enum(["online", "away", "busy", "offline"]).optional(),
       color: z.string().max(16).optional(),
+      activity: z.string().max(80).nullable().optional(),
     })
     .safeParse(await c.req.json());
   if (!body.success) return c.json({ error: "Invalid payload" }, 400);
@@ -456,16 +457,53 @@ friendRoutes.patch("/me", async (c) => {
     bio: body.data.bio ?? cur.rows[0].bio,
     status: body.data.status ?? cur.rows[0].status,
     color: body.data.color ?? cur.rows[0].color,
+    activity:
+      body.data.activity !== undefined
+        ? body.data.activity
+        : (cur.rows[0].activity as string | null),
   };
   const { rows } = await query(
-    `UPDATE users SET display_name = $1, bio = $2, status = $3, color = $4
-     WHERE id = $5
-     RETURNING id, username, display_name, bio, color, role, status, avatar_url`,
-    [next.display_name, next.bio, next.status, next.color, me],
+    `UPDATE users SET display_name = $1, bio = $2, status = $3, color = $4, activity = $5
+     WHERE id = $6
+     RETURNING id, username, display_name, bio, color, role, status, avatar_url, activity`,
+    [
+      next.display_name,
+      next.bio,
+      next.status,
+      next.color,
+      next.activity,
+      me,
+    ],
   );
   if (body.data.status) {
     broadcast({ type: "presence", userId: me, status: body.data.status });
   }
+  if (body.data.activity !== undefined) {
+    broadcast({
+      type: "presence_activity",
+      userId: me,
+      activity: body.data.activity,
+    });
+  }
+  return c.json({ user: mapUser(rows[0]) });
+});
+
+/** Admin assigns Mod / Member / Admin. */
+friendRoutes.patch("/users/:id/role", async (c) => {
+  if (!(await requireAdmin(c.get("userId")))) {
+    return c.json({ error: "Admin only" }, 403);
+  }
+  const id = c.req.param("id");
+  const body = z
+    .object({ role: z.enum(["Admin", "Mod", "Member"]) })
+    .safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: "Invalid role" }, 400);
+  const { rows } = await query(
+    `UPDATE users SET role = $1 WHERE id = $2
+     RETURNING id, username, display_name, bio, color, role, status, avatar_url, activity`,
+    [body.data.role, id],
+  );
+  if (!rows[0]) return c.json({ error: "Not found" }, 404);
   return c.json({ user: mapUser(rows[0]) });
 });
 

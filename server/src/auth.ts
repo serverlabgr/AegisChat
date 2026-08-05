@@ -16,6 +16,7 @@ export type PublicUser = {
   role: string;
   status: string;
   avatarUrl: string | null;
+  activity?: string | null;
 };
 
 export type JwtPayload = {
@@ -116,6 +117,7 @@ export function mapUser(row: {
   role: string;
   status: string;
   avatar_url: string | null;
+  activity?: string | null;
 }): PublicUser {
   return {
     id: row.id,
@@ -126,6 +128,7 @@ export function mapUser(row: {
     role: row.role,
     status: row.status,
     avatarUrl: row.avatar_url,
+    activity: row.activity ?? null,
   };
 }
 

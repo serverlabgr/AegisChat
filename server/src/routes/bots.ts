@@ -123,6 +123,59 @@ botRoutes.patch("/:id", async (c) => {
   return c.json({ bot: mapBot(rows[0]) });
 });
 
+/** Lite slash runtime: `/botname args` → channel reply from that bot. */
+botRoutes.post("/invoke", async (c) => {
+  const body = z
+    .object({
+      channelId: z.string().min(1),
+      text: z.string().trim().min(1).max(500),
+    })
+    .safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: "Invalid payload" }, 400);
+
+  const m = /^\/([a-zA-Z0-9_-]{1,64})\s*(.*)$/.exec(body.data.text);
+  if (!m) return c.json({ handled: false });
+
+  const botName = m[1];
+  const args = m[2].trim();
+  const { rows: bots } = await query(
+    `SELECT id, name, description, icon, user_id, enabled
+     FROM bots WHERE lower(name) = lower($1) AND enabled = true
+     LIMIT 1`,
+    [botName],
+  );
+  if (!bots[0]) return c.json({ handled: false });
+
+  const reply =
+    args.length === 0
+      ? `${bots[0].icon ?? "🤖"} **${bots[0].name}** — ${bots[0].description || "online"}`
+      : `${bots[0].icon ?? "🤖"} ${bots[0].name}: έλαβα \`${args}\``;
+
+  const { rows } = await query(
+    `INSERT INTO messages (channel_id, author_id, content)
+     VALUES ($1, $2, $3)
+     RETURNING id, channel_id, author_id, content, reply_to_id, edited, created_at`,
+    [body.data.channelId, bots[0].user_id, reply],
+  );
+  const message = {
+    id: rows[0].id,
+    authorId: rows[0].author_id,
+    content: rows[0].content,
+    timestamp: new Date(rows[0].created_at).getTime(),
+    encrypted: false,
+    edited: false,
+    reactions: [] as { emoji: string; userIds: string[] }[],
+    system: true,
+  };
+  const { broadcast } = await import("../ws.js");
+  broadcast({
+    type: "message",
+    channelId: body.data.channelId,
+    message,
+  });
+  return c.json({ handled: true, message });
+});
+
 botRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const { rows } = await query(
